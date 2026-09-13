@@ -1,0 +1,24 @@
+{
+  "name": "Neon Void: Asteroid Blaster",
+  "short_name": "Neon Void",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#02040a",
+  "theme_color": "#02040a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%2302040a'/%3E%3Ccircle cx='96' cy='96' r='70' fill='none' stroke='%2300eaff' stroke-width='8'/%3E%3Ccircle cx='96' cy='96' r='14' fill='%23ff00aa'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%2302040a'/%3E%3Ccircle cx='256' cy='256' r='185' fill='none' stroke='%2300eaff' stroke-width='20'/%3E%3Ccircle cx='256' cy='256' r='38' fill='%23ff00aa'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
