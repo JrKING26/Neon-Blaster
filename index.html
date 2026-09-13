@@ -6,7 +6,18 @@
       content="width=device-width,
                initial-scale=1.0,
                maximum-scale=1.0,
-               user-scalable=no">
+               user-scalable=no,
+               viewport-fit=cover">
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#02040a">
+
+<!-- iOS ignores the manifest above for "add to home screen" launch
+     behavior, so these three tags are what actually get a chrome-free
+     fullscreen window when launched from the home screen icon. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
 
 <title>NEON VOID // ASTEROID BLASTER</title>
 
@@ -27,6 +38,7 @@ body {
     width: 100%;
     height: 100%;
     overflow: hidden;
+    overscroll-behavior: none;
     background: #02040a;
     font-family: "Courier New", monospace;
     color: white;
@@ -90,23 +102,39 @@ canvas {
     width: 100%;
     height: 100%;
     display: block;
+    touch-action: none;
 }
 
 /* =========================================================
-   GAME STAGE — fixed 800x600 landscape playfield, centered
-   (and letterboxed) on screen. Every HUD/menu layer below is
-   positioned relative to this box instead of the raw window,
-   so it lines up with the canvas no matter the browser size.
+   GAME STAGE — fills the full browser viewport so the game
+   works as a true mobile fullscreen experience. The canvas's
+   internal resolution is kept in sync with this box's actual
+   pixel size via resizeCanvas()/the resize listener below, and
+   every HUD/menu layer is positioned relative to this box so it
+   still lines up no matter the device.
    ========================================================= */
 
 #gameStage {
     position: relative;
-    width: min(800px, 100vw, calc(100vh * 800 / 600));
-    aspect-ratio: 800 / 600;
-    max-height: 100vh;
+    width: 100vw;
+    height: 100vh;
     background: #000;
     box-shadow: 0 0 60px rgba(0, 234, 255, 0.15);
     overflow: hidden;
+}
+
+/* Dynamic viewport units: on mobile browsers the address bar/nav
+   bar show and hide as you scroll, and 100vh is measured against
+   the LARGEST possible viewport — so the page ends up taller than
+   what's actually visible, leaving a cut-off or scrollable bottom
+   edge. 100dvh instead tracks the viewport that's actually visible
+   right now. Browsers that don't understand dvh just ignore this
+   rule and keep the 100vh fallback above. */
+@supports (height: 100dvh) {
+    #gameStage {
+        width: 100dvw;
+        height: 100dvh;
+    }
 }
 
 /* =========================================================
@@ -477,6 +505,60 @@ button:hover {
 }
 
 /* =========================================================
+   PORTRAIT MODE WARNING
+   The game is landscape-only. This overlay sits outside
+   #gameStage so it's always available to show, and the media
+   query below flips it on (and hides the game) whenever the
+   device is held vertically — flipping back automatically the
+   moment the device is rotated to landscape.
+   ========================================================= */
+
+#orientationWarning {
+    display: none;
+
+    position: fixed;
+    inset: 0;
+
+    z-index: 9999;
+
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+
+    padding: 30px;
+    text-align: center;
+
+    background: #02040a;
+    color: #fff;
+
+    font-family: "Courier New", monospace;
+    font-size: 18px;
+    line-height: 1.5;
+}
+
+#orientationWarning .rotate-icon {
+    font-size: 60px;
+    animation: rotateHint 1.6s ease-in-out infinite;
+}
+
+@keyframes rotateHint {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+}
+
+@media (orientation: portrait) {
+
+    #orientationWarning {
+        display: flex;
+    }
+
+    #gameStage {
+        display: none;
+    }
+}
+
+/* =========================================================
    CRT EFFECT
    ========================================================= */
 
@@ -789,6 +871,11 @@ body::after {
 
 </div>
 
+<div id="orientationWarning">
+    <div class="rotate-icon">⟳</div>
+    <p>Please rotate your device to Landscape mode to play.</p>
+</div>
+
 <script>
 
 /* =========================================================
@@ -959,26 +1046,48 @@ const SETTINGS = {
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-/* Landscape reversion: the game now runs on a fixed, wide
-   16:10-ish landscape playfield instead of following the
-   window's (often portrait) dimensions. All spawn logic and
-   boundaries below already read from W/H dynamically, so
-   fixing these two constants is enough to make every mob,
-   power-up, missile, and boss pattern spawn/patrol across
-   the full width of the new landscape screen. */
-const GAME_WIDTH = 800;
-const GAME_HEIGHT = 600;
+/* Mobile Fullscreen: the canvas now dynamically fills the actual
+   browser viewport (window.innerWidth/innerHeight) instead of the
+   fixed 800x600 box used previously, re-syncing on every resize and
+   orientation change. All spawn logic, boundaries, and difficulty
+   curves elsewhere already read from W/H (and from level/score, not
+   from screen size), so this is purely a presentation change —
+   every existing mechanic (boss AI, scaling curves, homing
+   missiles, etc.) is untouched. */
 
 let W = 0;
 let H = 0;
 
 function resizeCanvas() {
 
-    W = canvas.width = GAME_WIDTH;
-    H = canvas.height = GAME_HEIGHT;
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
 }
 
 resizeCanvas();
+
+window.addEventListener("resize", () => {
+
+    resizeCanvas();
+
+    /* Safety net: if a resize was triggered by rotating into
+       portrait mid-game, pause so nothing can hit the player while
+       the warning overlay is covering the canvas. gameState is
+       declared further below but this listener only ever runs
+       later, at actual resize time, so the reference is safe. */
+
+    if (
+        window.matchMedia("(orientation: portrait)").matches &&
+        gameState === "playing"
+    ) {
+        pauseGame();
+    }
+});
+
+window.addEventListener(
+    "orientationchange",
+    resizeCanvas
+);
 
 
 /* =========================================================
@@ -1110,6 +1219,76 @@ window.addEventListener("keydown", e => {
 window.addEventListener("keyup", e => {
     keys[e.code] = false;
 });
+
+
+/* =========================================================
+   TOUCH CONTROLS (DRAG TO MOVE)
+   Mobile phones have no arrow keys, so dragging a finger anywhere
+   on the canvas smoothly steers the ship toward that point.
+   Coordinates are translated from raw touch (client) space into
+   the canvas's internal W/H game space via getBoundingClientRect,
+   so it tracks correctly no matter how the canvas is scaled.
+   Works alongside the keyboard and the on-screen d-pad buttons:
+   updatePlayer() below simply prefers touch whenever a finger is
+   currently down.
+   ========================================================= */
+
+let touchActive = false;
+let touchTargetX = 0;
+let touchTargetY = 0;
+
+function touchPointToCanvas(touch) {
+
+    const rect =
+        canvas.getBoundingClientRect();
+
+    return {
+        x: (touch.clientX - rect.left) * (W / rect.width),
+        y: (touch.clientY - rect.top) * (H / rect.height)
+    };
+}
+
+canvas.addEventListener("touchstart", e => {
+
+    e.preventDefault();
+
+    const point =
+        touchPointToCanvas(e.touches[0]);
+
+    touchActive = true;
+
+    touchTargetX = point.x;
+    touchTargetY = point.y;
+
+}, { passive: false });
+
+canvas.addEventListener("touchmove", e => {
+
+    e.preventDefault();
+
+    if (!touchActive) {
+        return;
+    }
+
+    const point =
+        touchPointToCanvas(e.touches[0]);
+
+    touchTargetX = point.x;
+    touchTargetY = point.y;
+
+}, { passive: false });
+
+function releaseTouch(e) {
+
+    if (e) {
+        e.preventDefault();
+    }
+
+    touchActive = false;
+}
+
+canvas.addEventListener("touchend", releaseTouch, { passive: false });
+canvas.addEventListener("touchcancel", releaseTouch, { passive: false });
 
 
 /* =========================================================
@@ -1554,46 +1733,69 @@ const PLAYER_MIN_Y = 130;
 
 function updatePlayer(dt) {
 
-    let moveX = 0;
-    let moveY = 0;
+    if (touchActive) {
 
-    if (keys["ArrowLeft"]) {
-        moveX -= 1;
+        /* Touch Drag Movement: ease the ship toward the finger's
+           current position instead of the digital arrow-key
+           movement below. The exponential follow rate is
+           frame-rate independent and converges in a few frames,
+           giving a smooth (not instant-teleport) drag feel while
+           still tracking the finger closely. */
+
+        const followRate =
+            1 - Math.pow(0.0005, dt);
+
+        player.x +=
+            (touchTargetX - player.x) *
+            followRate;
+
+        player.y +=
+            (touchTargetY - player.y) *
+            followRate;
+
+    } else {
+
+        let moveX = 0;
+        let moveY = 0;
+
+        if (keys["ArrowLeft"]) {
+            moveX -= 1;
+        }
+
+        if (keys["ArrowRight"]) {
+            moveX += 1;
+        }
+
+        if (keys["ArrowUp"]) {
+            moveY -= 1;
+        }
+
+        if (keys["ArrowDown"]) {
+            moveY += 1;
+        }
+
+        if (moveX !== 0 && moveY !== 0) {
+
+            /* Normalize diagonal movement so it isn't faster than a straight line */
+
+            const inv = 1 / Math.SQRT2;
+
+            moveX *= inv;
+            moveY *= inv;
+        }
+
+        player.x +=
+            moveX *
+            player.speed *
+            dt *
+            slowMotion;
+
+        player.y +=
+            moveY *
+            player.speed *
+            dt *
+            slowMotion;
     }
-
-    if (keys["ArrowRight"]) {
-        moveX += 1;
-    }
-
-    if (keys["ArrowUp"]) {
-        moveY -= 1;
-    }
-
-    if (keys["ArrowDown"]) {
-        moveY += 1;
-    }
-
-    if (moveX !== 0 && moveY !== 0) {
-
-        /* Normalize diagonal movement so it isn't faster than a straight line */
-
-        const inv = 1 / Math.SQRT2;
-
-        moveX *= inv;
-        moveY *= inv;
-    }
-
-    player.x +=
-        moveX *
-        player.speed *
-        dt *
-        slowMotion;
-
-    player.y +=
-        moveY *
-        player.speed *
-        dt *
-        slowMotion;
 
     player.x =
         Math.max(
@@ -5544,9 +5746,49 @@ function clearGameObjects() {
 }
 
 
+/* =========================================================
+   MOBILE FULLSCREEN / ORIENTATION LOCK
+   Both APIs only work when triggered by a direct user gesture
+   (a click/tap), which startGame() below always is (the Start or
+   Restart button). Both are wrapped defensively since support is
+   inconsistent — notably iOS Safari does not support either one in
+   the regular browser tab, only once launched from a home-screen
+   icon (see the manifest.json + apple-mobile-web-app meta tags in
+   <head>), so failures here are expected and silently ignored.
+   ========================================================= */
+
+function requestMobileFullscreen() {
+
+    const stage =
+        document.getElementById("gameStage");
+
+    if (
+        stage &&
+        !document.fullscreenElement &&
+        stage.requestFullscreen
+    ) {
+
+        stage.requestFullscreen()
+            .catch(() => {});
+    }
+
+    if (
+        screen.orientation &&
+        screen.orientation.lock
+    ) {
+
+        screen.orientation
+            .lock("landscape")
+            .catch(() => {});
+    }
+}
+
+
 function startGame() {
 
     initAudio();
+
+    requestMobileFullscreen();
 
     gameState = "playing";
 
