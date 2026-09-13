@@ -1,0 +1,6244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width,
+               initial-scale=1.0,
+               maximum-scale=1.0,
+               user-scalable=no">
+
+<title>NEON VOID // ASTEROID BLASTER</title>
+
+<style>
+/* =========================================================
+   ASTEROID BLASTER V2
+   Pure HTML5 Canvas + Vanilla JavaScript
+   No external assets.
+   ========================================================= */
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #02040a;
+    font-family: "Courier New", monospace;
+    color: white;
+}
+
+body {
+    touch-action: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background:
+        radial-gradient(circle at 50% 15%, rgba(40, 0, 90, 0.20), transparent 38%),
+        radial-gradient(circle at 15% 80%, rgba(0, 220, 255, 0.10), transparent 32%),
+        #010108;
+}
+
+/* NEON CYBERPUNK THEME */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    opacity: 0.18;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent 0,
+        transparent 3px,
+        rgba(0, 255, 255, 0.035) 4px,
+        transparent 5px
+    );
+    mix-blend-mode: screen;
+}
+
+@keyframes neonTitle {
+    0%, 8%, 10%, 12%, 65%, 68%, 100% {
+        opacity: 1;
+        filter: brightness(1);
+        transform: translateY(0) skewX(0deg);
+    }
+    9%, 11%, 67% {
+        opacity: 0.72;
+        filter: brightness(1.8);
+        transform: translateY(-1px) skewX(-1deg);
+    }
+}
+
+@keyframes titleSweep {
+    from { transform: translateX(-130%); }
+    to { transform: translateX(130%); }
+}
+
+@keyframes neonPulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(0,255,255,.25), inset 0 0 25px rgba(255,0,170,.06); }
+    50% { box-shadow: 0 0 25px rgba(0,255,255,.5), 0 0 55px rgba(255,0,170,.18), inset 0 0 35px rgba(0,255,255,.08); }
+}
+
+canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* =========================================================
+   GAME STAGE — fixed 800x600 landscape playfield, centered
+   (and letterboxed) on screen. Every HUD/menu layer below is
+   positioned relative to this box instead of the raw window,
+   so it lines up with the canvas no matter the browser size.
+   ========================================================= */
+
+#gameStage {
+    position: relative;
+    width: min(800px, 100vw, calc(100vh * 800 / 600));
+    aspect-ratio: 800 / 600;
+    max-height: 100vh;
+    background: #000;
+    box-shadow: 0 0 60px rgba(0, 234, 255, 0.15);
+    overflow: hidden;
+}
+
+/* =========================================================
+   HUD
+   ========================================================= */
+
+#hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 12px 16px;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+
+    pointer-events: none;
+    z-index: 5;
+
+    text-shadow:
+        0 0 5px #fff,
+        0 0 12px #00eaff,
+        0 0 24px #ff00aa;
+}
+
+.hud-left,
+.hud-right {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.hud-right {
+    text-align: right;
+}
+
+#score,
+#highScore,
+#lives,
+#weapon,
+#combo,
+#level {
+    font-weight: bold;
+}
+
+/* =========================================================
+   BOSS BAR
+   ========================================================= */
+
+#bossHud {
+    position: absolute;
+    top: 82px;
+    left: 50%;
+    transform: translateX(-50%);
+
+    width: min(600px, 90%);
+
+    display: none;
+    text-align: center;
+
+    z-index: 5;
+    pointer-events: none;
+}
+
+#bossName {
+    margin-bottom: 7px;
+    font-weight: bold;
+    letter-spacing: 3px;
+    color: #ff4fd8;
+    text-shadow: 0 0 6px #fff, 0 0 14px #ff00aa, 0 0 30px #7a00ff;
+    animation: neonPulse 1.1s infinite alternate;
+}
+
+#bossBar {
+    width: 100%;
+    height: 16px;
+    border: 2px solid white;
+    background: #180000;
+}
+
+#bossHealth {
+    width: 100%;
+    height: 100%;
+    background: #f33;
+    box-shadow: 0 0 12px #f00;
+}
+
+/* =========================================================
+   MENUS
+   ========================================================= */
+
+.overlay {
+    position: absolute;
+    inset: 0;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    background:
+        radial-gradient(circle at center,
+        rgba(10, 30, 60, 0.75),
+        rgba(0, 0, 0, 0.92));
+
+    z-index: 10;
+}
+
+.panel {
+    width: min(700px, 90%);
+    max-height: 90%;
+    overflow-y: auto;
+
+    padding: 30px;
+
+    border: 2px solid #00eaff;
+    background:
+        linear-gradient(rgba(0, 8, 22, 0.96), rgba(8, 0, 20, 0.96));
+
+    box-shadow:
+        0 0 15px #00eaff,
+        0 0 45px rgba(255, 0, 170, 0.16),
+        inset 0 0 30px rgba(0, 220, 255, 0.08);
+    animation: neonPulse 2.8s infinite ease-in-out;
+
+    text-align: center;
+}
+
+.title {
+    position: relative;
+    overflow: hidden;
+    margin: 0 0 10px;
+    padding: 8px 0 14px;
+    font-size: clamp(35px, 7vw, 72px);
+    letter-spacing: 7px;
+    line-height: .92;
+    color: #fff;
+    background: linear-gradient(90deg, #00eaff 0%, #fff 38%, #ff35d1 68%, #8d4dff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 10px rgba(0,234,255,.75), 0 0 28px rgba(255,0,170,.55);
+    animation: neonTitle 3.4s infinite steps(1);
+}
+
+.title::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -25%;
+    width: 18%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent);
+    transform: translateX(-130%);
+    animation: titleSweep 2.7s infinite;
+    pointer-events: none;
+}
+
+.subtitle {
+    color: #70f7ff;
+    margin-bottom: 26px;
+    letter-spacing: 3px;
+    text-shadow: 0 0 8px #00eaff, 0 0 18px #7a00ff;
+}
+
+.boss-roster {
+    margin: 0 auto 22px;
+    max-width: 620px;
+    padding: 10px 12px;
+    border: 1px solid rgba(0,234,255,.55);
+    background: rgba(0, 20, 40, .38);
+    color: #a6fbff;
+    font-size: 11px;
+    line-height: 1.7;
+    letter-spacing: 1px;
+    box-shadow: 0 0 14px rgba(0,234,255,.12), inset 0 0 14px rgba(255,0,170,.06);
+}
+
+.boss-roster span {
+    display: block;
+    margin-bottom: 3px;
+    color: #ff4fd8;
+    text-shadow: 0 0 8px #ff00aa;
+}
+
+.boss-roster b {
+    color: #fff;
+    text-shadow: 0 0 7px #00eaff;
+}
+
+button {
+    appearance: none;
+
+    padding: 12px 22px;
+    margin: 6px;
+
+    color: #eaffff;
+    background: linear-gradient(90deg, #041521, #13051e);
+
+    border: 2px solid #00eaff;
+
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: bold;
+
+    cursor: pointer;
+
+    box-shadow: 0 0 10px rgba(0, 234, 255, 0.3), inset 0 0 12px rgba(255, 0, 170, 0.05);
+}
+
+button:hover {
+    background: #12304a;
+    box-shadow:
+        0 0 8px white,
+        0 0 20px #08f;
+}
+
+.menu-info {
+    margin: 25px 0;
+    line-height: 1.7;
+    color: #bbb;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* =========================================================
+   SETTINGS
+   ========================================================= */
+
+.settings-row {
+    margin: 18px 0;
+    padding: 12px;
+
+    border: 1px solid #345;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.settings-row button {
+    margin: 0;
+}
+
+/* =========================================================
+   ACHIEVEMENTS
+   ========================================================= */
+
+#achievementPopup {
+    position: absolute;
+
+    left: 50%;
+    top: 22%;
+
+    transform: translate(-50%, -50%);
+
+    min-width: 280px;
+
+    padding: 15px 25px;
+
+    border: 2px solid white;
+    background: rgba(0, 10, 20, 0.95);
+
+    text-align: center;
+
+    z-index: 20;
+
+    box-shadow:
+        0 0 20px #6cf;
+
+    display: none;
+}
+
+#achievementPopup.show {
+    display: block;
+    animation: achievement 2.5s ease forwards;
+}
+
+@keyframes achievement {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -70%);
+    }
+
+    15% {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+/* =========================================================
+   MOBILE CONTROLS
+   ========================================================= */
+
+#mobileControls {
+    position: absolute;
+    inset: auto 0 15px 0;
+
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+
+    padding: 0 18px;
+
+    z-index: 8;
+
+    pointer-events: none;
+}
+
+.mobile-group {
+    display: flex;
+    gap: 10px;
+}
+
+.mobile-vgroup {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: auto;
+}
+
+.mobile-button {
+    width: 65px;
+    height: 65px;
+
+    margin: 0;
+
+    border-radius: 50%;
+
+    background: rgba(10, 30, 50, 0.65);
+
+    border: 2px solid rgba(255,255,255,0.75);
+
+    font-size: 25px;
+
+    pointer-events: auto;
+
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.mobile-button:active {
+    background: rgba(60, 150, 220, 0.7);
+}
+
+@media (max-width: 800px) {
+    #mobileControls {
+        display: flex;
+    }
+
+    #hud {
+        font-size: 12px;
+    }
+
+    .panel {
+        padding: 20px;
+    }
+}
+
+/* =========================================================
+   CRT EFFECT
+   ========================================================= */
+
+body::after {
+    content: "";
+
+    position: fixed;
+    inset: 0;
+
+    pointer-events: none;
+
+    z-index: 50;
+
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            rgba(255,255,255,0.015) 0px,
+            rgba(255,255,255,0.015) 1px,
+            transparent 1px,
+            transparent 4px
+        );
+}
+</style>
+</head>
+
+<body>
+
+<div id="gameStage">
+
+<canvas id="game"></canvas>
+
+<!-- =======================================================
+     HUD
+     ======================================================= -->
+
+<div id="hud">
+
+    <div class="hud-left">
+        <div>SCORE: <span id="score">0</span></div>
+        <div>HIGH: <span id="highScore">0</span></div>
+        <div>LEVEL: <span id="level">1</span></div>
+    </div>
+
+    <div class="hud-right">
+        <div>LIVES: <span id="lives">♥♥♥</span></div>
+        <div>WEAPON: <span id="weapon">1x</span></div>
+        <div>COMBO: <span id="combo">x1</span></div>
+        <div>SHIELD: <span id="shieldHud">○○○</span></div>
+    </div>
+
+</div>
+
+<!-- =======================================================
+     BOSS HUD
+     ======================================================= -->
+
+<div id="bossHud">
+
+    <div id="bossName">BOSS</div>
+
+    <div id="bossBar">
+        <div id="bossHealth"></div>
+    </div>
+
+</div>
+
+<!-- =======================================================
+     ACHIEVEMENT
+     ======================================================= -->
+
+<div id="achievementPopup">
+
+    <div>★ ACHIEVEMENT ★</div>
+
+    <strong id="achievementText">
+        Achievement unlocked!
+    </strong>
+
+</div>
+
+<!-- =======================================================
+     MAIN MENU
+     ======================================================= -->
+
+<div id="menu" class="overlay">
+
+    <div class="panel">
+
+        <h1 class="title" aria-label="Neon Void Asteroid Blaster">
+            NEON VOID<br>BLASTER
+        </h1>
+
+        <div class="subtitle">
+            V2 // CYBERSPACE SURVIVAL PROTOCOL
+        </div>
+
+        <div class="boss-roster">
+            <span>BOSS NETWORK</span>
+            <b>VOID WRAITH</b> · <b>NOVA REAPER</b> · <b>STAR EATER</b> · <b>DREAD CORE</b>
+        </div>
+
+        <button id="startButton">
+            START GAME
+        </button>
+
+        <button id="difficultyButton">
+            DIFFICULTY: NORMAL
+        </button>
+
+        <button id="soundButton">
+            SOUND: ON
+        </button>
+
+        <button id="musicButton">
+            MUSIC: ON
+        </button>
+
+        <button id="howButton">
+            CONTROLS
+        </button>
+
+        <div class="menu-info">
+            Destroy everything.<br>
+            Survive as long as possible.<br>
+            Defeat the bosses.
+        </div>
+
+        <div>
+            HIGH SCORE:
+            <strong id="menuHighScore">0</strong>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- =======================================================
+     CONTROLS SCREEN
+     ======================================================= -->
+
+<div id="controlsMenu" class="overlay hidden">
+
+    <div class="panel">
+
+        <h2>CONTROLS</h2>
+
+        <div class="menu-info">
+
+            <strong>DESKTOP</strong><br>
+            ↑ ↓ ← → &nbsp; Move (4-way)<br>
+            Your ship fires automatically<br>
+            P &nbsp; Pause<br>
+            B &nbsp; Bomb<br>
+            ESC &nbsp; Menu
+
+            <br><br>
+
+            <strong>MOBILE</strong><br>
+            Use the on-screen controls.
+
+            <br><br>
+
+            Collect blue power-ups to increase
+            weapon strength.
+
+            <br><br>
+
+            Shields now stack up to 3 layers —
+            each hit costs one layer instead of a life.
+
+            <br><br>
+
+            Speed power-ups make you faster
+            until you take a hit.
+
+            <br><br>
+
+            Watch for the pulsing red mine.
+            It flashes and wails before it dashes at you,
+            and its blast ignores your shields.
+
+            <br><br>
+
+            Destroy enemies quickly to build
+            your combo multiplier.
+
+        </div>
+
+        <button id="controlsBack">
+            BACK
+        </button>
+
+    </div>
+
+</div>
+
+<!-- =======================================================
+     PAUSE SCREEN
+     ======================================================= -->
+
+<div id="pauseMenu" class="overlay hidden">
+
+    <div class="panel">
+
+        <h2>PAUSED</h2>
+
+        <button id="resumeButton">
+            RESUME
+        </button>
+
+        <button id="pauseMenuButton">
+            MAIN MENU
+        </button>
+
+    </div>
+
+</div>
+
+<!-- =======================================================
+     GAME OVER
+     ======================================================= -->
+
+<div id="gameOverMenu" class="overlay hidden">
+
+    <div class="panel">
+
+        <h2>GAME OVER</h2>
+
+        <p>
+            SCORE:
+            <strong id="finalScore">0</strong>
+        </p>
+
+        <p>
+            HIGH SCORE:
+            <strong id="finalHighScore">0</strong>
+        </p>
+
+        <p>
+            ASTEROIDS DESTROYED:
+            <strong id="finalKills">0</strong>
+        </p>
+
+        <p>
+            MAX COMBO:
+            <strong id="finalCombo">1</strong>
+        </p>
+
+        <button id="restartButton">
+            PLAY AGAIN
+        </button>
+
+        <button id="gameOverMenuButton">
+            MAIN MENU
+        </button>
+
+    </div>
+
+</div>
+
+<!-- =======================================================
+     MOBILE CONTROLS
+     ======================================================= -->
+
+<div id="mobileControls">
+
+    <div class="mobile-group">
+
+        <button
+            class="mobile-button"
+            id="leftButton">
+            ◀
+        </button>
+
+        <button
+            class="mobile-button"
+            id="rightButton">
+            ▶
+        </button>
+
+    </div>
+
+    <div class="mobile-vgroup">
+
+        <button
+            class="mobile-button"
+            id="upButton">
+            ▲
+        </button>
+
+        <button
+            class="mobile-button"
+            id="downButton">
+            ▼
+        </button>
+
+    </div>
+
+    <div class="mobile-group">
+
+        <button
+            class="mobile-button"
+            id="bombButton">
+            B
+        </button>
+
+    </div>
+
+</div>
+
+</div>
+
+<script>
+
+/* =========================================================
+   ASTEROID BLASTER V2
+   =========================================================
+
+   Everything is contained in this file.
+
+   Main areas:
+   1. Configuration
+   2. Canvas
+   3. Audio
+   4. Game state
+   5. Player
+   6. Weapons
+   7. Enemies
+   8. Boss
+   9. Power-ups
+   10. Particles
+   11. Starfield
+   12. Collision
+   13. Difficulty
+   14. Menus
+   15. Game loop
+   ========================================================= */
+
+
+/* =========================================================
+   1. EASY-TO-TWEAK SETTINGS
+   ========================================================= */
+
+const SETTINGS = {
+
+    player: {
+        width: 38,
+        height: 50,
+
+        speed: 420,
+
+        maxLives: 3,
+
+        startingWeapon: 1,
+
+        invulnerabilityTime: 2.0
+    },
+
+    laser: {
+        speed: 850,
+
+        width: 4,
+        height: 18,
+
+        damage: 1,
+
+        fireRate: 0.18,
+
+        maxPower: 5
+    },
+
+    asteroid: {
+
+        minRadius: 18,
+        maxRadius: 48,
+
+        minSpeed: 100,
+        maxSpeed: 230,
+
+        spawnEvery: 0.85
+    },
+
+    enemy: {
+
+        fastSpeed: 230,
+
+        shooterSpeed: 100,
+
+        ufoSpeed: 130
+    },
+
+    kamikaze: {
+
+        health: 3,
+
+        driftSpeed: 55,
+
+        driftMin: 1.5,
+        driftMax: 1.5,
+
+        chargeDuration: 1.05,
+
+        dashSpeed: 832,
+
+        spawnMin: 16,
+        spawnMax: 24,
+
+        firstSpawnMin: 10,
+        firstSpawnMax: 16
+    },
+
+    missile: {
+
+        health: 3,
+
+        speed: 165,
+
+        turnRate: 1.21,
+
+        initialVy: 60,
+
+        lifetime: 14
+    },
+
+    boss: {
+
+        baseHealth: 80,
+
+        speed: 90,
+
+        size: 100,
+
+        attackInterval: 3.2
+    },
+
+    powerUp: {
+
+        speed: 150,
+
+        lifetime: 12,
+
+        /* Spawn frequency lowered by 20% overall (interval scaled by 1/0.8) */
+        spawnMin: 3.125,
+        spawnMax: 5.625
+    },
+
+    combo: {
+
+        timeout: 1.5,
+
+        maxMultiplier: 20
+    },
+
+    difficulty: {
+
+        easy: 0.75,
+        normal: 1,
+        hard: 1.35
+    },
+
+    score: {
+
+        asteroid: 10,
+        fast: 20,
+        shooter: 35,
+        ufo: 50,
+        armored: 50,
+        kamikaze: 75,
+        missile: 60,
+        boss: 500
+    }
+
+};
+
+
+/* =========================================================
+   2. CANVAS
+   ========================================================= */
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+/* Landscape reversion: the game now runs on a fixed, wide
+   16:10-ish landscape playfield instead of following the
+   window's (often portrait) dimensions. All spawn logic and
+   boundaries below already read from W/H dynamically, so
+   fixing these two constants is enough to make every mob,
+   power-up, missile, and boss pattern spawn/patrol across
+   the full width of the new landscape screen. */
+const GAME_WIDTH = 800;
+const GAME_HEIGHT = 600;
+
+let W = 0;
+let H = 0;
+
+function resizeCanvas() {
+
+    W = canvas.width = GAME_WIDTH;
+    H = canvas.height = GAME_HEIGHT;
+}
+
+resizeCanvas();
+
+
+/* =========================================================
+   3. GAME STATE
+   ========================================================= */
+
+let gameState = "menu";
+
+let score = 0;
+
+let highScore =
+    Number(localStorage.getItem("asteroidHighScore")) || 0;
+
+let level = 1;
+
+let kills = 0;
+
+let maxCombo = 1;
+
+let difficulty = "normal";
+
+let difficultyMultiplier =
+    SETTINGS.difficulty.normal;
+
+let soundEnabled = true;
+
+let musicEnabled = true;
+
+let bossActive = false;
+
+/* Boss score thresholds follow a cubic pattern for much wider breathing
+   room between fights as the player's score naturally accelerates:
+   1500, 12000, 40500, 96000, 187500... (bossLevel^3 * 1500) */
+
+function bossScoreThreshold(bossLevel) {
+    return Math.pow(bossLevel, 3) * 1500;
+}
+
+let bossNumber = 1;
+
+let nextBossScore =
+    bossScoreThreshold(bossNumber);
+
+let slowMotion = 1;
+
+let screenShake = 0;
+
+let flashTimer = 0;
+
+/* EMP Time-Freeze state */
+let empFreezeTimer = 0;
+let empFreezeDuration = 0;
+let empWaveOriginX = 0;
+let empWaveOriginY = 0;
+
+
+/* =========================================================
+   ARRAYS
+   ========================================================= */
+
+let lasers = [];
+let enemyBullets = [];
+let asteroids = [];
+let enemies = [];
+let particles = [];
+let powerUps = [];
+let stars = [];
+let drones = [];
+
+let explosions = [];
+
+
+/* =========================================================
+   KEYBOARD
+   ========================================================= */
+
+const keys = {};
+
+window.addEventListener("keydown", e => {
+
+    keys[e.code] = true;
+
+    if (
+        e.code === "Space" ||
+        e.code === "ArrowLeft" ||
+        e.code === "ArrowRight" ||
+        e.code === "ArrowUp" ||
+        e.code === "ArrowDown"
+    ) {
+        e.preventDefault();
+    }
+
+    if (e.code === "KeyP") {
+
+        if (gameState === "playing") {
+            pauseGame();
+        }
+
+        else if (gameState === "paused") {
+            resumeGame();
+        }
+    }
+
+    if (e.code === "KeyB") {
+
+        if (gameState === "playing") {
+            useBomb();
+        }
+    }
+
+    if (
+        e.code === "Enter" ||
+        e.code === "Space"
+    ) {
+
+        if (gameState === "gameover") {
+            startGame();
+        }
+    }
+
+    if (e.code === "Escape") {
+
+        if (gameState === "playing") {
+            pauseGame();
+        }
+    }
+});
+
+window.addEventListener("keyup", e => {
+    keys[e.code] = false;
+});
+
+
+/* =========================================================
+   4. AUDIO ENGINE
+   ========================================================= */
+
+let audioContext = null;
+
+let musicTimer = null;
+
+let musicStep = 0;
+
+function initAudio() {
+
+    if (!audioContext) {
+
+        audioContext =
+            new (
+                window.AudioContext ||
+                window.webkitAudioContext
+            )();
+    }
+
+    if (audioContext.state === "suspended") {
+        audioContext.resume();
+    }
+}
+
+
+function tone(
+    frequency,
+    duration = 0.1,
+    type = "square",
+    volume = 0.05
+) {
+
+    if (!soundEnabled) return;
+
+    initAudio();
+
+    const oscillator =
+        audioContext.createOscillator();
+
+    const gain =
+        audioContext.createGain();
+
+    oscillator.type = type;
+
+    oscillator.frequency.value = frequency;
+
+    gain.gain.setValueAtTime(
+        volume,
+        audioContext.currentTime
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+        0.001,
+        audioContext.currentTime + duration
+    );
+
+    oscillator.connect(gain);
+
+    gain.connect(audioContext.destination);
+
+    oscillator.start();
+
+    oscillator.stop(
+        audioContext.currentTime + duration
+    );
+}
+
+
+/* =========================================================
+   SOUND EFFECTS
+   ========================================================= */
+
+function fireSound() {
+    tone(720, 0.04, "square", 0.02);
+}
+
+function hitSound() {
+    tone(100, 0.18, "sawtooth", 0.08);
+}
+
+function explosionSound() {
+
+    tone(70, 0.25, "sawtooth", 0.08);
+
+    setTimeout(() => {
+        tone(40, 0.2, "square", 0.04);
+    }, 50);
+}
+
+function powerSound() {
+
+    tone(500, 0.08, "square");
+
+    setTimeout(() => {
+        tone(750, 0.08, "square");
+    }, 70);
+
+    setTimeout(() => {
+        tone(1000, 0.12, "square");
+    }, 140);
+}
+
+/* Sharp zap followed by a low electrical hum — the EMP blast */
+
+function empSound() {
+
+    tone(1500, 0.05, "square", 0.05);
+
+    setTimeout(() => {
+        tone(180, 0.35, "sawtooth", 0.06);
+    }, 40);
+}
+
+/* Alarming wail played while a kamikaze mine charges its dash */
+
+function sirenSound(duration = 1.0) {
+
+    if (!soundEnabled) return;
+
+    initAudio();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.type = "sawtooth";
+
+    const now = audioContext.currentTime;
+
+    const cycles = Math.max(2, Math.round(duration / 0.16));
+    const step = duration / cycles;
+
+    osc.frequency.setValueAtTime(480, now);
+
+    for (let i = 0; i < cycles; i++) {
+
+        const t = now + i * step;
+
+        osc.frequency.linearRampToValueAtTime(
+            i % 2 === 0 ? 920 : 480,
+            t + step
+        );
+    }
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.11, now + 0.05);
+    gain.gain.setValueAtTime(0.11, now + Math.max(0.05, duration - 0.08));
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+
+    osc.start(now);
+    osc.stop(now + duration);
+}
+
+function bossSound() {
+
+    tone(70, 0.5, "sawtooth", 0.1);
+
+    setTimeout(() => {
+        tone(50, 0.5, "sawtooth", 0.1);
+    }, 150);
+}
+
+function gameOverSound() {
+
+    tone(300, 0.2, "square");
+
+    setTimeout(() => {
+        tone(220, 0.3, "square");
+    }, 220);
+
+    setTimeout(() => {
+        tone(100, 0.5, "square");
+    }, 550);
+}
+
+
+/* =========================================================
+   SIMPLE SYNTH MUSIC
+   ========================================================= */
+
+const musicNotes = [
+    220, 277, 330, 440,
+    330, 277, 247, 330
+];
+
+function startMusic() {
+
+    stopMusic();
+
+    if (!musicEnabled) return;
+
+    musicStep = 0;
+
+    musicTimer = setInterval(() => {
+
+        if (
+            gameState !== "playing" ||
+            !musicEnabled
+        ) {
+            return;
+        }
+
+        tone(
+            musicNotes[musicStep],
+            0.12,
+            "triangle",
+            0.018
+        );
+
+        musicStep++;
+
+        if (musicStep >= musicNotes.length) {
+            musicStep = 0;
+        }
+
+    }, 170);
+}
+
+function stopMusic() {
+
+    if (musicTimer) {
+        clearInterval(musicTimer);
+        musicTimer = null;
+    }
+}
+
+
+/* =========================================================
+   5. PLAYER
+   ========================================================= */
+
+const player = {
+
+    x: W / 2,
+
+    y: H - 100,
+
+    width: SETTINGS.player.width,
+
+    height: SETTINGS.player.height,
+
+    speed: SETTINGS.player.speed,
+
+    lives: SETTINGS.player.maxLives,
+
+    weaponPower: SETTINGS.player.startingWeapon,
+
+    fireCooldown: 0,
+
+    invulnerable: 0,
+
+    shieldCount: 0,
+
+    rapidFire: 0,
+
+    damageBoost: 0,
+
+    magnet: 0,
+
+    bombCount: 1,
+
+    speedBoosted: false,
+
+    thrustPhase: 0
+};
+
+
+function resetPlayer() {
+
+    player.x = W / 2;
+
+    player.y = H - 100;
+
+    player.lives =
+        SETTINGS.player.maxLives;
+
+    player.weaponPower =
+        SETTINGS.player.startingWeapon;
+
+    player.fireCooldown = 0;
+
+    player.invulnerable = 0;
+
+    player.shieldCount = 0;
+
+    player.rapidFire = 0;
+
+    player.damageBoost = 0;
+
+    player.magnet = 0;
+
+    player.bombCount = 1;
+
+    player.speed = SETTINGS.player.speed;
+
+    player.speedBoosted = false;
+}
+
+
+/* =========================================================
+   DRAW PLAYER
+   ========================================================= */
+
+function drawPlayer() {
+
+    if (
+        player.invulnerable > 0 &&
+        Math.floor(performance.now() / 80) % 2 === 0
+    ) {
+        return;
+    }
+
+    ctx.save();
+
+    ctx.translate(player.x, player.y);
+
+    /* Thruster */
+
+    player.thrustPhase += 0.2;
+
+    const flame =
+        15 + Math.sin(player.thrustPhase) * 7;
+
+    ctx.beginPath();
+
+    ctx.moveTo(-7, 20);
+    ctx.lineTo(0, 20 + flame);
+    ctx.lineTo(7, 20);
+
+    ctx.closePath();
+
+    ctx.fillStyle = "#ffcc33";
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = "#ff9900";
+
+    ctx.fill();
+
+    /* Ship */
+
+    ctx.beginPath();
+
+    ctx.moveTo(0, -25);
+    ctx.lineTo(-19, 18);
+    ctx.lineTo(0, 10);
+    ctx.lineTo(19, 18);
+
+    ctx.closePath();
+
+    ctx.fillStyle = "#dcefff";
+
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = "#55ccff";
+
+    ctx.fill();
+
+    ctx.strokeStyle = "#55ccff";
+    ctx.lineWidth = 2;
+
+    ctx.stroke();
+
+    /* Cockpit */
+
+    ctx.beginPath();
+
+    ctx.moveTo(0, -15);
+    ctx.lineTo(-6, 2);
+    ctx.lineTo(6, 2);
+
+    ctx.closePath();
+
+    ctx.fillStyle = "#33ccff";
+
+    ctx.fill();
+
+    /* Shield (one ring per stacked layer, up to 3) */
+
+    if (player.shieldCount > 0) {
+
+        for (let s = 0; s < player.shieldCount; s++) {
+
+            ctx.beginPath();
+
+            ctx.arc(
+                0,
+                0,
+                30 + s * 8,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.strokeStyle =
+                `rgba(50,180,255,${
+                    0.45 + Math.sin(performance.now() / 100 + s) * 0.2
+                })`;
+
+            ctx.lineWidth = 3;
+
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#09f";
+
+            ctx.stroke();
+        }
+    }
+
+    /* Speed boost aura */
+
+    if (player.speedBoosted) {
+
+        ctx.beginPath();
+
+        ctx.moveTo(0, -34);
+        ctx.lineTo(-10, -20);
+        ctx.lineTo(10, -20);
+
+        ctx.closePath();
+
+        ctx.fillStyle =
+            `rgba(255,238,51,${0.5 + Math.sin(performance.now() / 90) * 0.3})`;
+
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = "#ffe033";
+
+        ctx.fill();
+    }
+
+    ctx.restore();
+}
+
+
+/* =========================================================
+   PLAYER MOVEMENT
+   ========================================================= */
+
+const PLAYER_MIN_Y = 130;
+
+
+function updatePlayer(dt) {
+
+    let moveX = 0;
+    let moveY = 0;
+
+    if (keys["ArrowLeft"]) {
+        moveX -= 1;
+    }
+
+    if (keys["ArrowRight"]) {
+        moveX += 1;
+    }
+
+    if (keys["ArrowUp"]) {
+        moveY -= 1;
+    }
+
+    if (keys["ArrowDown"]) {
+        moveY += 1;
+    }
+
+    if (moveX !== 0 && moveY !== 0) {
+
+        /* Normalize diagonal movement so it isn't faster than a straight line */
+
+        const inv = 1 / Math.SQRT2;
+
+        moveX *= inv;
+        moveY *= inv;
+    }
+
+    player.x +=
+        moveX *
+        player.speed *
+        dt *
+        slowMotion;
+
+    player.y +=
+        moveY *
+        player.speed *
+        dt *
+        slowMotion;
+
+    player.x =
+        Math.max(
+            25,
+            Math.min(W - 25, player.x)
+        );
+
+    player.y =
+        Math.max(
+            PLAYER_MIN_Y,
+            Math.min(H - 40, player.y)
+        );
+
+    player.fireCooldown -= dt;
+
+    if (player.invulnerable > 0) {
+        player.invulnerable -= dt;
+    }
+
+    if (player.rapidFire > 0) {
+        player.rapidFire -= dt;
+    }
+
+    if (player.damageBoost > 0) {
+        player.damageBoost -= dt;
+    }
+
+    if (player.magnet > 0) {
+        player.magnet -= dt;
+    }
+
+    /* Auto-fire: the ship shoots continuously on its own,
+       throttled by player.fireCooldown inside fireWeapon(). */
+
+    fireWeapon();
+}
+
+
+/* =========================================================
+   6. WEAPON SYSTEM
+   ========================================================= */
+
+function fireWeapon() {
+
+    if (player.fireCooldown > 0) {
+        return;
+    }
+
+    let fireRate = SETTINGS.laser.fireRate;
+
+    if (player.rapidFire > 0) {
+        fireRate *= 0.38;
+    }
+
+    player.fireCooldown = fireRate;
+
+    const power = Math.min(
+        SETTINGS.laser.maxPower,
+        player.weaponPower
+    );
+
+    const spreads = {
+        1: [[0, 0]],
+        2: [[-4, 0], [4, 0]],
+        3: [[0, 0], [-5, 0], [5, 0]],
+        4: [[-6, 0], [-2, 0], [2, 0], [6, 0]],
+        5: [[-8, 0], [-4, 0], [0, 0], [4, 0], [8, 0]]
+    };
+
+    for (const [offset, angle] of spreads[power]) {
+        createLaser(
+            player.x + offset,
+            player.y - (power === 5 ? 31 : 25),
+            angle,
+            power === 5
+        );
+    }
+
+    if (power === 5) {
+        tone(980, 0.06, "sawtooth", 0.03);
+        setTimeout(() => tone(1320, 0.08, "square", 0.022), 35);
+        screenShake = Math.max(screenShake, 2.5);
+    } else {
+        fireSound();
+    }
+
+    particles.push({
+        x: player.x,
+        y: player.y - 27,
+        life: 0.08,
+        maxLife: 0.08,
+        size: power === 5 ? 22 : 12,
+        type: "flash"
+    });
+}
+
+
+function createLaser(x, y, angle, maxPower = false) {
+
+    lasers.push({
+
+        x,
+        y,
+
+        vx: Math.sin(angle) * SETTINGS.laser.speed,
+
+        vy: -Math.cos(angle) * SETTINGS.laser.speed,
+
+        width: maxPower ? 10 : SETTINGS.laser.width,
+        height: maxPower ? 34 : SETTINGS.laser.height,
+
+        damage: SETTINGS.laser.damage *
+            (player.damageBoost > 0 ? 2 : 1) *
+            (maxPower ? 1.35 : 1),
+
+        maxPower,
+        life: 2
+
+    });
+}
+
+/* =========================================================
+   LASER UPDATE
+   ========================================================= */
+
+function updateLasers(dt) {
+
+    for (let i = lasers.length - 1; i >= 0; i--) {
+
+        const laser = lasers[i];
+
+        laser.x +=
+            laser.vx *
+            dt *
+            slowMotion;
+
+        laser.y +=
+            laser.vy *
+            dt *
+            slowMotion;
+
+        laser.life -= dt;
+
+        particles.push({
+
+            x: laser.x,
+            y: laser.y + 8,
+
+            life: 0.12,
+            maxLife: 0.12,
+
+            size: 3,
+
+            type: "trail"
+        });
+
+        if (
+            laser.y < -50 ||
+            laser.x < -50 ||
+            laser.x > W + 50 ||
+            laser.life <= 0
+        ) {
+
+            lasers.splice(i, 1);
+        }
+    }
+}
+
+
+/* =========================================================
+   DRAW LASERS
+   ========================================================= */
+
+function drawLasers() {
+
+    for (const laser of lasers) {
+
+        ctx.save();
+
+        ctx.translate(laser.x, laser.y);
+
+        ctx.rotate(
+            Math.atan2(
+                laser.vx,
+                -laser.vy
+            )
+        );
+
+        ctx.fillStyle = laser.maxPower ? "#fff36a" : "#7ff";
+
+        ctx.shadowBlur = laser.maxPower ? 28 : 15;
+        ctx.shadowColor = laser.maxPower ? "#ff9d00" : "#0ff";
+
+        ctx.fillRect(
+            -laser.width / 2,
+            -laser.height / 2,
+            laser.width,
+            laser.height
+        );
+
+        ctx.restore();
+    }
+}
+
+
+/* =========================================================
+   ORBITAL SUPPORT DRONES (WINGMEN)
+   Rare power-up companions. They mirror the player's X
+   position with a fixed left/right offset, auto-fire their
+   own standard lasers into the shared `lasers` array (so all
+   existing laser-vs-enemy/boss/asteroid collision code just
+   works), and act as meat shields: any enemy or projectile
+   that reaches one destroys the drone instead of hitting the
+   player. Capped at 2 active drones at a time.
+
+   Permanent Drones: drones never expire on a timer. Once
+   collected, a drone stays with the player indefinitely until it
+   either (a) takes a hit meant for the player, sacrificing itself,
+   or (b) the player is hit by the unkillable Kamikaze Detonator,
+   which wipes the whole squadron (see damagePlayer's wipeDrones
+   option) as the cost of that otherwise-undodgeable hit.
+   ========================================================= */
+
+const DRONE_MAX = 2;
+const DRONE_OFFSET_X = 48;
+const DRONE_FIRE_RATE = 0.32;
+
+function spawnOrRefreshDrone(side) {
+
+    const existing =
+        drones.find(d => d.side === side);
+
+    if (existing) {
+
+        /* Already permanent — nothing to refresh. */
+        return;
+    }
+
+    if (drones.length >= DRONE_MAX) {
+        return;
+    }
+
+    drones.push({
+
+        side,
+
+        x: player.x + (side === "left" ? -DRONE_OFFSET_X : DRONE_OFFSET_X),
+        y: player.y,
+
+        fireTimer: Math.random() * DRONE_FIRE_RATE
+    });
+}
+
+
+function updateDrones(dt) {
+
+    for (let i = drones.length - 1; i >= 0; i--) {
+
+        const d = drones[i];
+
+        /* No lifetime countdown — drones are permanent until they
+           sacrifice themselves for the player or the squadron is
+           wiped by an unkillable Detonator hit. */
+
+        /* Move in perfect sync with the player */
+
+        d.x = player.x + (d.side === "left" ? -DRONE_OFFSET_X : DRONE_OFFSET_X);
+        d.y = player.y;
+
+        d.fireTimer -= dt;
+
+        if (d.fireTimer <= 0) {
+
+            d.fireTimer = DRONE_FIRE_RATE;
+
+            createLaser(d.x, d.y - 25, 0, false);
+        }
+    }
+}
+
+
+function drawDrones() {
+
+    for (const d of drones) {
+
+        ctx.save();
+
+        ctx.translate(d.x, d.y);
+
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = "#0a2030";
+        ctx.strokeStyle = "#39ff88";
+        ctx.lineWidth = 2;
+
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = "#39ff88";
+
+        ctx.beginPath();
+        ctx.moveTo(0, -12);
+        ctx.lineTo(9, 8);
+        ctx.lineTo(0, 4);
+        ctx.lineTo(-9, 8);
+        ctx.closePath();
+
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
+    }
+}
+
+
+/* =========================================================
+   7. ASTEROIDS
+   ========================================================= */
+
+let asteroidSpawnTimer = 0;
+
+
+function createAsteroid(
+    x = Math.random() * W,
+    y = -60,
+    radius =
+        SETTINGS.asteroid.minRadius +
+        Math.random() *
+        (
+            SETTINGS.asteroid.maxRadius -
+            SETTINGS.asteroid.minRadius
+        )
+) {
+
+    const points =
+        7 + Math.floor(Math.random() * 5);
+
+    const shape = [];
+
+    for (let i = 0; i < points; i++) {
+
+        shape.push(
+            radius *
+            (
+                0.72 +
+                Math.random() * 0.35
+            )
+        );
+    }
+
+    asteroids.push({
+
+        x,
+        y,
+
+        radius,
+
+        vx:
+            (Math.random() - 0.5) *
+            100,
+
+        vy:
+            SETTINGS.asteroid.minSpeed +
+            Math.random() *
+            (
+                SETTINGS.asteroid.maxSpeed -
+                SETTINGS.asteroid.minSpeed
+            ),
+
+        rotation: Math.random() * Math.PI * 2,
+
+        rotationSpeed:
+            (Math.random() - 0.5) * 2,
+
+        shape,
+
+        /* HP Scaling: the size-based health curve is reduced by 20%
+           (divisor raised from 10 to 12.5), so bigger asteroids are
+           slightly easier to chew through. */
+
+        health:
+            1 +
+            Math.floor(
+                (radius - SETTINGS.asteroid.minRadius) / 12.5
+            )
+
+    });
+}
+
+
+/* Size-tiered splitting: large asteroids shatter into three faster
+   fragments, medium asteroids into two; small asteroids just vanish. */
+
+function splitAsteroid(a) {
+
+    const isLarge = a.radius > 38;
+    const isMedium = !isLarge && a.radius > 24;
+
+    if (!isLarge && !isMedium) {
+        return;
+    }
+
+    /* Splitting Reduction: large/medium asteroids now only have an
+       80% chance to fragment when destroyed (a 20% cut to the
+       splitting mechanic) — the rest of the time they simply break
+       apart without spawning fragments. */
+
+    if (Math.random() < 0.2) {
+        return;
+    }
+
+    const fragmentCount = isLarge ? 3 : 2;
+
+    const childRadius =
+        Math.max(
+            12,
+            a.radius * (isLarge ? 0.5 : 0.55)
+        );
+
+    const spreadAngles =
+        isLarge
+            ? [-0.7, 0, 0.7]
+            : [-0.5, 0.5];
+
+    const baseAngle =
+        Math.atan2(a.vy, a.vx || 0.0001);
+
+    const baseSpeed =
+        Math.sqrt(a.vx * a.vx + a.vy * a.vy) * 1.35;
+
+    for (let i = 0; i < fragmentCount; i++) {
+
+        createAsteroid(
+            a.x,
+            a.y,
+            childRadius
+        );
+
+        const child =
+            asteroids[asteroids.length - 1];
+
+        const angle =
+            baseAngle + spreadAngles[i];
+
+        child.vx = Math.cos(angle) * baseSpeed;
+        child.vy = Math.sin(angle) * baseSpeed;
+    }
+}
+
+
+function updateAsteroids(dt) {
+
+    /* EMP Time-Freeze: no new asteroids while frozen, and existing
+       ones hold perfectly still — no movement, no rotation. */
+
+    if (empFreezeTimer > 0) {
+        return;
+    }
+
+    asteroidSpawnTimer -= dt;
+
+    /* Count Scaling: the per-level ramp that shrinks the spawn
+       interval (and so raises the effective on-screen asteroid
+       count) is cut by 30% (0.08 -> 0.056), so the screen fills up
+       more slowly as the game progresses. */
+
+    const spawnRate =
+        SETTINGS.asteroid.spawnEvery /
+        (
+            difficultyMultiplier *
+            (
+                1 +
+                level * 0.056
+            )
+        );
+
+    if (
+        asteroidSpawnTimer <= 0 &&
+        !bossActive
+    ) {
+
+        asteroidSpawnTimer =
+            Math.max(0.18, spawnRate);
+
+        createAsteroid();
+    }
+
+    for (
+        let i = asteroids.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const a = asteroids[i];
+
+        a.x +=
+            a.vx *
+            dt *
+            slowMotion;
+
+        a.y +=
+            a.vy *
+            dt *
+            slowMotion;
+
+        a.rotation +=
+            a.rotationSpeed *
+            dt;
+
+        if (
+            a.y >
+            H + a.radius + 50
+        ) {
+
+            asteroids.splice(i, 1);
+        }
+    }
+}
+
+
+/* =========================================================
+   DRAW ASTEROIDS
+   ========================================================= */
+
+function drawAsteroids() {
+
+    for (const a of asteroids) {
+
+        ctx.save();
+
+        ctx.translate(a.x, a.y);
+
+        ctx.rotate(a.rotation);
+
+        ctx.beginPath();
+
+        for (let i = 0; i < a.shape.length; i++) {
+
+            const angle =
+                i /
+                a.shape.length *
+                Math.PI * 2;
+
+            const r = a.shape[i];
+
+            const x =
+                Math.cos(angle) * r;
+
+            const y =
+                Math.sin(angle) * r;
+
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+
+        ctx.closePath();
+
+        ctx.fillStyle =
+            a.health > 1
+                ? "#555"
+                : "#777";
+
+        ctx.strokeStyle =
+            a.health > 1
+                ? "#f6c"
+                : "#aaa";
+
+        ctx.lineWidth = 2;
+
+        ctx.shadowBlur = 5;
+        ctx.shadowColor =
+            a.health > 1
+                ? "#f0f"
+                : "#fff";
+
+        ctx.fill();
+
+        ctx.stroke();
+
+        /* Craters */
+
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = "#333";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            -a.radius * 0.25,
+            -a.radius * 0.1,
+            a.radius * 0.18,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+        ctx.beginPath();
+
+        ctx.arc(
+            a.radius * 0.25,
+            a.radius * 0.3,
+            a.radius * 0.12,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+        ctx.restore();
+    }
+}
+
+
+/* =========================================================
+   8. OTHER ENEMIES
+   ========================================================= */
+
+/* Standard mob HP scales with how many bosses have been defeated so far:
+   3 -> 4 -> 6 -> 8 -> 10 HP before bosses 1-5, then +2 per boss beyond
+   that, hard-capped at 20 HP. */
+
+const ENEMY_HEALTH_TABLE = [3, 4, 6, 8, 10];
+
+function getScaledEnemyHealth() {
+
+    const bossesDefeated =
+        Math.max(0, bossNumber - 1);
+
+    let hp;
+
+    if (bossesDefeated < ENEMY_HEALTH_TABLE.length) {
+
+        hp = ENEMY_HEALTH_TABLE[bossesDefeated];
+    }
+
+    else {
+
+        hp =
+            ENEMY_HEALTH_TABLE[ENEMY_HEALTH_TABLE.length - 1] +
+            (
+                bossesDefeated -
+                (ENEMY_HEALTH_TABLE.length - 1)
+            ) * 2;
+    }
+
+    return Math.min(20, hp);
+}
+
+
+function spawnEnemy(type) {
+
+    enemies.push({
+
+        type,
+
+        x:
+            Math.random() * W,
+
+        y:
+            -60,
+
+        width:
+            type === "ufo" ? 45 : 30,
+
+        height:
+            type === "ufo" ? 25 : 35,
+
+        health:
+            getScaledEnemyHealth(),
+
+        flashTimer: 0,
+
+        phase:
+            Math.random() * Math.PI * 2,
+
+        fireTimer:
+            1 +
+            Math.random(),
+
+        vx: 0,
+
+        vy:
+            type === "fast"
+                ? SETTINGS.enemy.fastSpeed
+                : type === "ufo"
+                    ? SETTINGS.enemy.ufoSpeed
+                    : SETTINGS.enemy.shooterSpeed
+    });
+}
+
+
+/* =========================================================
+   KILLER BOMB (KAMIKAZE)
+   ========================================================= */
+
+function createKamikaze() {
+
+    enemies.push({
+
+        type: "kamikaze",
+
+        x:
+            40 +
+            Math.random() * (W - 80),
+
+        y: -50,
+
+        width: 34,
+        height: 34,
+
+        health: SETTINGS.kamikaze.health,
+
+        flashTimer: 0,
+
+        phase:
+            Math.random() * Math.PI * 2,
+
+        pulsePhase:
+            Math.random() * Math.PI * 2,
+
+        state: "drift",
+
+        stateTimer:
+            SETTINGS.kamikaze.driftMin +
+            Math.random() *
+            (
+                SETTINGS.kamikaze.driftMax -
+                SETTINGS.kamikaze.driftMin
+            ),
+
+        lockX: 0,
+        lockY: 0,
+
+        dashVX: 0,
+        dashVY: 0,
+
+        sirenPlayed: false
+    });
+}
+
+
+/* =========================================================
+   HOMING MISSILE (shared by boss Pattern 5 and the rare
+   standard-mob "Homing Kamikaze Missile")
+   ========================================================= */
+
+function createMissile(x, y, waveCount) {
+
+    /* Trajectory & Speed Variance: each missile gets its own slight
+       tracking-arc multiplier and a +/- 2% speed variance so a wave
+       staggers its approach instead of clumping into one identical
+       line. */
+
+    const speedVariance =
+        1 + (Math.random() * 0.04 - 0.02);
+
+    const turnVariance =
+        0.8 + Math.random() * 0.4;
+
+    enemies.push({
+
+        type: "missile",
+
+        x,
+        y,
+
+        vx: 0,
+
+        vy: SETTINGS.missile.initialVy * speedVariance,
+
+        /* Dynamic Toughness: when spawned as part of a wave, HP
+           matches that wave's missile count (e.g. a wave of 3
+           missiles gives each 3 HP). Solo spawns (e.g. the boss's
+           Lock-On Missile) keep the base HP setting. */
+
+        health:
+            waveCount ?
+                waveCount :
+                SETTINGS.missile.health,
+
+        width: 22,
+        height: 22,
+
+        flashTimer: 0,
+
+        phase:
+            Math.random() * Math.PI * 2,
+
+        life: SETTINGS.missile.lifetime,
+
+        speedMult: speedVariance,
+        turnMult: turnVariance
+    });
+}
+
+
+let enemySpawnTimer = 2;
+
+let kamikazeSpawnTimer =
+    SETTINGS.kamikaze.firstSpawnMin +
+    Math.random() *
+    (
+        SETTINGS.kamikaze.firstSpawnMax -
+        SETTINGS.kamikaze.firstSpawnMin
+    );
+
+
+function updateEnemies(dt) {
+
+    /* EMP Time-Freeze: no new spawns, and every existing enemy
+       (mobs, kamikaze mines, homing missiles) holds in place —
+       no movement, no firing, no tracking the player. */
+
+    if (empFreezeTimer > 0) {
+        return;
+    }
+
+    enemySpawnTimer -= dt;
+
+    if (
+        enemySpawnTimer <= 0 &&
+        !bossActive
+    ) {
+
+        enemySpawnTimer =
+            Math.max(
+                0.65,
+                3.2 /
+                Math.sqrt(difficultyMultiplier) /
+                (
+                    1 +
+                    level * 0.025
+                )
+            );
+
+        const roll =
+            Math.random();
+
+        if (roll < 0.12) {
+
+            /* Quantity scales with level: 1 missile early on, up to 5 at once
+               at max level. */
+
+            let missileCount =
+                Math.min(
+                    5,
+                    1 + Math.floor((level - 1) / 5)
+                );
+
+            /* Anti-Drone Measure: if the player currently has active
+               Support Drones, the missile spawn count immediately
+               starts at a minimum of 3 to counter the extra
+               firepower the drones provide. */
+
+            if (drones.length > 0) {
+
+                missileCount =
+                    Math.max(3, missileCount);
+            }
+
+            for (let m = 0; m < missileCount; m++) {
+
+                createMissile(
+                    Math.random() * W,
+                    -50 - m * 40,
+                    missileCount
+                );
+            }
+        }
+
+        else if (roll < 0.428) {
+            spawnEnemy("fast");
+        }
+
+        else if (roll < 0.648) {
+            spawnEnemy("shooter");
+        }
+
+        else if (roll < 0.806) {
+            spawnEnemy("armored");
+        }
+
+        else {
+            spawnEnemy("ufo");
+        }
+    }
+
+    /* Rare, high-threat kamikaze mine — keeps ticking even during boss fights */
+
+    kamikazeSpawnTimer -= dt;
+
+    if (kamikazeSpawnTimer <= 0) {
+
+        kamikazeSpawnTimer =
+            SETTINGS.kamikaze.spawnMin +
+            Math.random() *
+            (
+                SETTINGS.kamikaze.spawnMax -
+                SETTINGS.kamikaze.spawnMin
+            );
+
+        createKamikaze();
+    }
+
+    for (
+        let i = enemies.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const e = enemies[i];
+
+        e.phase += dt * 4;
+
+        if (e.flashTimer > 0) {
+            e.flashTimer -= dt;
+        }
+
+        if (e.type === "fast") {
+
+            e.x +=
+                Math.sin(e.phase) *
+                90 *
+                dt;
+
+            e.y +=
+                e.vy *
+                dt *
+                slowMotion;
+        }
+
+        else if (e.type === "shooter") {
+
+            e.y +=
+                e.vy *
+                dt *
+                slowMotion;
+
+            e.fireTimer -= dt;
+
+            if (
+                e.fireTimer <= 0
+            ) {
+
+                e.fireTimer =
+                    2.0 /
+                    Math.sqrt(difficultyMultiplier);
+
+                createEnemyBullet(
+                    e.x,
+                    e.y,
+                    player.x,
+                    player.y
+                );
+            }
+        }
+
+        else if (e.type === "armored") {
+
+            e.y +=
+                e.vy *
+                dt *
+                slowMotion;
+        }
+
+        else if (e.type === "ufo") {
+
+            e.x +=
+                Math.sin(e.phase) *
+                120 *
+                dt;
+
+            e.y +=
+                e.vy *
+                dt *
+                slowMotion;
+
+            if (
+                e.y > H * 0.3
+            ) {
+                e.vy = 0;
+            }
+        }
+
+        else if (e.type === "missile") {
+
+            e.life -= dt;
+
+            if (e.life <= 0) {
+
+                enemies.splice(i, 1);
+
+                continue;
+            }
+
+            /* Slowly steer toward the player, like a real homing missile */
+
+            const desiredAngle =
+                Math.atan2(
+                    player.y - e.y,
+                    player.x - e.x
+                );
+
+            const currentAngle =
+                Math.atan2(e.vy, e.vx || 0.0001);
+
+            let diff =
+                desiredAngle - currentAngle;
+
+            diff =
+                Math.atan2(
+                    Math.sin(diff),
+                    Math.cos(diff)
+                );
+
+            const maxTurn =
+                SETTINGS.missile.turnRate *
+                (e.turnMult || 1) *
+                dt;
+
+            const turn =
+                Math.max(
+                    -maxTurn,
+                    Math.min(maxTurn, diff)
+                );
+
+            const newAngle =
+                currentAngle + turn;
+
+            e.vx =
+                Math.cos(newAngle) *
+                SETTINGS.missile.speed *
+                (e.speedMult || 1);
+
+            e.vy =
+                Math.sin(newAngle) *
+                SETTINGS.missile.speed *
+                (e.speedMult || 1);
+
+            e.x += e.vx * dt * slowMotion;
+            e.y += e.vy * dt * slowMotion;
+
+            if (
+                e.x < -150 ||
+                e.x > W + 150 ||
+                e.y < -150 ||
+                e.y > H + 150
+            ) {
+
+                enemies.splice(i, 1);
+
+                continue;
+            }
+
+            continue;
+        }
+
+        else if (e.type === "kamikaze") {
+
+            e.pulsePhase += dt * 6;
+
+            if (e.state === "drift") {
+
+                e.y +=
+                    SETTINGS.kamikaze.driftSpeed *
+                    dt *
+                    slowMotion;
+
+                e.stateTimer -= dt;
+
+                if (e.stateTimer <= 0) {
+
+                    e.state = "charge";
+
+                    e.stateTimer =
+                        SETTINGS.kamikaze.chargeDuration;
+
+                    /* Lock onto the player's current position */
+
+                    e.lockX = player.x;
+                    e.lockY = player.y;
+                }
+            }
+
+            else if (e.state === "charge") {
+
+                if (!e.sirenPlayed) {
+
+                    e.sirenPlayed = true;
+
+                    sirenSound(
+                        SETTINGS.kamikaze.chargeDuration
+                    );
+                }
+
+                e.stateTimer -= dt;
+
+                if (e.stateTimer <= 0) {
+
+                    const dx = e.lockX - e.x;
+                    const dy = e.lockY - e.y;
+
+                    const dist =
+                        Math.max(
+                            1,
+                            Math.sqrt(
+                                dx * dx +
+                                dy * dy
+                            )
+                        );
+
+                    e.dashVX =
+                        dx / dist *
+                        SETTINGS.kamikaze.dashSpeed;
+
+                    e.dashVY =
+                        dy / dist *
+                        SETTINGS.kamikaze.dashSpeed;
+
+                    e.state = "dash";
+                }
+            }
+
+            else if (e.state === "dash") {
+
+                e.x +=
+                    e.dashVX *
+                    dt *
+                    slowMotion;
+
+                e.y +=
+                    e.dashVY *
+                    dt *
+                    slowMotion;
+
+                if (
+                    e.y > H + 120 ||
+                    e.y < -150 ||
+                    e.x < -150 ||
+                    e.x > W + 150
+                ) {
+
+                    enemies.splice(i, 1);
+
+                    continue;
+                }
+            }
+
+            continue;
+        }
+
+        if (
+            e.y >
+            H + 100
+        ) {
+
+            enemies.splice(i, 1);
+        }
+    }
+}
+
+
+/* =========================================================
+   DRAW ENEMIES
+   ========================================================= */
+
+function drawEnemies() {
+
+    for (const e of enemies) {
+
+        ctx.save();
+
+        ctx.translate(e.x, e.y);
+
+        const flashing = e.flashTimer > 0;
+
+        if (e.type === "fast") {
+
+            ctx.beginPath();
+
+            ctx.moveTo(0, -22);
+            ctx.lineTo(-17, 20);
+            ctx.lineTo(0, 10);
+            ctx.lineTo(17, 20);
+
+            ctx.closePath();
+
+            ctx.fillStyle = flashing ? "#fff" : "#f44";
+
+            ctx.strokeStyle = "#ff9999";
+
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#f00";
+
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        else if (e.type === "shooter") {
+
+            ctx.beginPath();
+
+            ctx.rect(
+                -18,
+                -18,
+                36,
+                36
+            );
+
+            ctx.fillStyle = flashing ? "#fff" : "#d84";
+
+            ctx.strokeStyle = "#ffb";
+
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = "#f80";
+
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+
+            ctx.arc(
+                0,
+                0,
+                7,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.fillStyle = flashing ? "#fff" : "#f22";
+            ctx.fill();
+        }
+
+        else if (e.type === "armored") {
+
+            ctx.beginPath();
+
+            ctx.moveTo(0, -25);
+            ctx.lineTo(22, -8);
+            ctx.lineTo(16, 20);
+            ctx.lineTo(-16, 20);
+            ctx.lineTo(-22, -8);
+
+            ctx.closePath();
+
+            ctx.fillStyle = flashing ? "#fff" : "#765";
+
+            ctx.strokeStyle = "#f6c";
+
+            ctx.lineWidth = 3;
+
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = "#f0f";
+
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        else if (e.type === "ufo") {
+
+            ctx.beginPath();
+
+            ctx.ellipse(
+                0,
+                0,
+                25,
+                12,
+                0,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.fillStyle = flashing ? "#fff" : "#4c7";
+
+            ctx.strokeStyle = "#aff";
+
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#0ff";
+
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+
+            ctx.arc(
+                0,
+                -5,
+                9,
+                Math.PI,
+                0
+            );
+
+            ctx.strokeStyle = "#fff";
+
+            ctx.stroke();
+        }
+
+        else if (e.type === "missile") {
+
+            const angle =
+                Math.atan2(e.vy, e.vx || 0.0001);
+
+            ctx.rotate(angle + Math.PI / 2);
+
+            /* Thruster trail */
+
+            const flame =
+                10 + Math.sin(e.phase * 3) * 4;
+
+            ctx.beginPath();
+
+            ctx.moveTo(-5, 12);
+            ctx.lineTo(0, 12 + flame);
+            ctx.lineTo(5, 12);
+
+            ctx.closePath();
+
+            ctx.fillStyle = "#ffaa33";
+
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = "#ff8800";
+
+            ctx.fill();
+
+            /* Missile body */
+
+            ctx.beginPath();
+
+            ctx.moveTo(0, -16);
+            ctx.lineTo(-7, 10);
+            ctx.lineTo(0, 5);
+            ctx.lineTo(7, 10);
+
+            ctx.closePath();
+
+            ctx.fillStyle = flashing ? "#fff" : "#dd3355";
+
+            ctx.strokeStyle = "#ffccd6";
+
+            ctx.lineWidth = 2;
+
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = "#ff2255";
+
+            ctx.fill();
+            ctx.stroke();
+
+            /* Tracking light */
+
+            ctx.beginPath();
+
+            ctx.arc(0, -6, 3, 0, Math.PI * 2);
+
+            ctx.fillStyle =
+                Math.floor(performance.now() / 150) % 2 === 0
+                    ? "#fff"
+                    : "#ff5577";
+
+            ctx.fill();
+        }
+
+        else if (e.type === "kamikaze") {
+
+            const charging = e.state === "charge";
+
+            /* Rapid alarm flicker while charging its dash */
+
+            const warningFlash =
+                charging &&
+                Math.floor(performance.now() / 60) % 2 === 0;
+
+            const pulse =
+                4 * Math.sin(e.pulsePhase);
+
+            const bodyColor =
+                flashing
+                    ? "#fff"
+                    : warningFlash
+                        ? "#fff"
+                        : "#ff1f3d";
+
+            ctx.beginPath();
+
+            ctx.arc(
+                0,
+                0,
+                17 + pulse,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.fillStyle = bodyColor;
+
+            ctx.strokeStyle =
+                charging ? "#fff" : "#ff8fa0";
+
+            ctx.lineWidth = 2;
+
+            ctx.shadowBlur = charging ? 26 : 16;
+            ctx.shadowColor =
+                charging ? "#fff" : "#f00";
+
+            ctx.fill();
+            ctx.stroke();
+
+            /* Mine spikes */
+
+            for (let s = 0; s < 8; s++) {
+
+                const ang =
+                    (s / 8) * Math.PI * 2;
+
+                const r1 = 17 + pulse;
+                const r2 = r1 + 8;
+
+                ctx.beginPath();
+
+                ctx.moveTo(
+                    Math.cos(ang) * r1,
+                    Math.sin(ang) * r1
+                );
+
+                ctx.lineTo(
+                    Math.cos(ang) * r2,
+                    Math.sin(ang) * r2
+                );
+
+                ctx.strokeStyle =
+                    charging ? "#fff" : "#ff6070";
+
+                ctx.lineWidth = 3;
+
+                ctx.stroke();
+            }
+
+            /* Core light */
+
+            ctx.beginPath();
+
+            ctx.arc(0, 0, 5, 0, Math.PI * 2);
+
+            ctx.fillStyle = "#fff";
+
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#fff";
+
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+}
+
+
+/* =========================================================
+   ENEMY BULLETS
+   ========================================================= */
+
+function createEnemyBullet(
+    x,
+    y,
+    targetX,
+    targetY,
+    customSpeed = 260
+) {
+
+    const dx = targetX - x;
+    const dy = targetY - y;
+
+    const distance =
+        Math.sqrt(dx * dx + dy * dy);
+
+    const speed = customSpeed;
+
+    enemyBullets.push({
+
+        x,
+        y,
+
+        vx:
+            dx / distance * speed,
+
+        vy:
+            dy / distance * speed,
+
+        radius: 5
+
+    });
+}
+
+
+function updateEnemyBullets(dt) {
+
+    for (
+        let i = enemyBullets.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const b = enemyBullets[i];
+
+        b.x +=
+            b.vx *
+            dt *
+            slowMotion;
+
+        b.y +=
+            b.vy *
+            dt *
+            slowMotion;
+
+        if (
+            b.x < -50 ||
+            b.x > W + 50 ||
+            b.y < -50 ||
+            b.y > H + 50
+        ) {
+
+            enemyBullets.splice(i, 1);
+        }
+    }
+}
+
+
+function drawEnemyBullets() {
+
+    for (const b of enemyBullets) {
+
+        ctx.beginPath();
+
+        ctx.arc(
+            b.x,
+            b.y,
+            b.radius,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fillStyle = "#f55";
+
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = "#f00";
+
+        ctx.fill();
+    }
+}
+
+
+/* =========================================================
+   9. BOSS SYSTEM
+   ========================================================= */
+
+let boss = null;
+
+
+function createBoss() {
+
+    bossActive = true;
+
+    const health = SETTINGS.boss.baseHealth + level * 25 + (bossNumber - 1) * 25;
+
+    boss = {
+        x: W / 2,
+        y: -130,
+        width: SETTINGS.boss.size * 1.6,
+        height: SETTINGS.boss.size,
+        health,
+        maxHealth: health,
+        phase: 0,
+        fireTimer: 0.8,
+        attackTimer: 1.8,
+        attackPattern: 0,
+        patternTime: 0,
+        dashTimer: 1.5,
+        dashX: 0,
+        sweepAngle: 0,
+        sweepDirection: Math.random() < 0.5 ? -1 : 1,
+        laserWarning: 0,
+        laserAngle: 0,
+
+        /* Pattern 4: The Death Rush */
+        rushState: "none",
+        rushTimer: 0,
+        rushWarned: false,
+        rushVX: 0,
+        rushVY: 0,
+
+        /* Pattern 6: Chakra Spin */
+        chakraAngle: 0,
+        chakraSpawnTimer: 0
+    };
+
+    document.getElementById("bossName").textContent =
+        `BOSS ${bossNumber} // ${["VOID WRAITH", "NOVA REAPER", "STAR EATER", "DREAD CORE", "NEON TYRANT", "CYBER HYDRA", "SINGULARITY X", "OMEGA GHOST"][((bossNumber - 1) % 4)]}`;
+    document.getElementById("bossHud").style.display = "block";
+
+    bossSound();
+    screenShake = 24;
+    flashTimer = 0.35;
+}
+
+
+/* =========================================================
+   BOSS ATTACK SELECTION — 6 patterns, weighted 70/30
+   Pattern 4 (Death Rush) is exactly 30% likely; the other
+   patterns split the remaining 70% at random — EXCEPT Pattern 5
+   (Lock-On Missile), which is weighted 10% heavier than the rest
+   of the 70% pool so it rolls more often.
+   ========================================================= */
+
+function pickBossPattern(prevPattern) {
+
+    if (Math.random() < 0.3) {
+        return 4;
+    }
+
+    /* Anti-spam: Chakra Spin (6) can never fire twice in a row */
+
+    const others =
+        prevPattern === 6
+            ? [1, 2, 3, 5]
+            : [1, 2, 3, 5, 6];
+
+    /* Lock-On Missile (5) gets a 10% heavier weight than its
+       siblings in this pool; everything else stays even. */
+    const weights = others.map(
+        p => p === 5 ? 1.1 : 1
+    );
+
+    const totalWeight =
+        weights.reduce((sum, w) => sum + w, 0);
+
+    let roll = Math.random() * totalWeight;
+
+    for (let i = 0; i < others.length; i++) {
+
+        roll -= weights[i];
+
+        if (roll <= 0) {
+            return others[i];
+        }
+    }
+
+    return others[others.length - 1];
+}
+
+
+function updateBoss(dt) {
+
+    if (!boss) return;
+
+    boss.phase += dt;
+
+    if (boss.y < 130 && boss.rushState === "none") {
+        boss.y += 95 * dt;
+        return;
+    }
+
+    if (boss.rushState !== "none") {
+        updateBossRush(dt);
+        return;
+    }
+
+    /* Erratic movement: figure-eight drift plus sudden dashes. */
+    boss.x += (Math.sin(boss.phase * 1.7) * 135 + Math.sin(boss.phase * 3.9) * 55) * dt;
+    boss.y = 130 + Math.sin(boss.phase * 1.35) * 28;
+
+    boss.dashTimer -= dt;
+    if (boss.dashTimer <= 0) {
+        boss.dashTimer = 1.1 + Math.random() * 1.8;
+        boss.dashX = (Math.random() < 0.5 ? -1 : 1) * (120 + Math.random() * 220);
+        screenShake = Math.max(screenShake, 7);
+        tone(120, 0.08, "sawtooth", 0.035);
+    }
+    boss.x += boss.dashX * dt;
+    boss.dashX *= Math.pow(0.015, dt);
+    boss.x = Math.max(boss.width / 2, Math.min(W - boss.width / 2, boss.x));
+
+    if (boss.laserWarning > 0) {
+        boss.laserWarning -= dt;
+    }
+
+    boss.fireTimer -= dt;
+    if (boss.fireTimer <= 0) {
+        boss.fireTimer = Math.max(0.32, (0.95 + Math.random() * 0.35) / difficultyMultiplier);
+        bossRapidFire();
+    }
+
+    boss.attackTimer -= dt;
+    if (boss.attackTimer <= 0) {
+        boss.attackTimer = Math.max(2.6, SETTINGS.boss.attackInterval / Math.min(2.2, difficultyMultiplier));
+        boss.attackPattern = pickBossPattern(boss.attackPattern);
+        boss.patternTime = 0;
+        bossSpecialAttack();
+    }
+
+    if (boss.attackPattern === 3 && boss.patternTime > 0) {
+
+        boss.patternTime -= dt;
+        boss.sweepAngle += boss.sweepDirection * dt * 0.95;
+
+        if (boss.patternTime <= 0) boss.laserWarning = 0;
+    }
+
+    else if (boss.attackPattern === 6 && boss.patternTime > 0) {
+
+        /* Chakra Spin: continuously spawn a rotating multi-armed spiral.
+           Nerf: bullet density trimmed 5% by widening the spawn interval
+           (0.07 -> 0.07368s), which spaces the spiral's bullets out with
+           slightly larger gaps and makes it a bit more dodgeable. */
+
+        boss.patternTime -= dt;
+        boss.chakraAngle += dt * 2.4;
+        boss.chakraSpawnTimer -= dt;
+
+        if (boss.chakraSpawnTimer <= 0) {
+
+            boss.chakraSpawnTimer = 0.07 / 0.95;
+
+            const arms = 3;
+
+            for (let k = 0; k < arms; k++) {
+
+                const angle =
+                    boss.chakraAngle +
+                    k * (Math.PI * 2 / arms);
+
+                enemyBullets.push({
+                    x: boss.x,
+                    y: boss.y,
+                    vx: Math.cos(angle) * 210,
+                    vy: Math.sin(angle) * 210,
+                    radius: 6,
+                    kind: "boss"
+                });
+            }
+        }
+    }
+}
+
+
+/* =========================================================
+   PATTERN 4: THE DEATH RUSH
+   Warning (2s, flashing + siren) -> shield-piercing dash to
+   the bottom of the screen -> smooth retreat to patrol path.
+   ========================================================= */
+
+function updateBossRush(dt) {
+
+    if (boss.rushState === "warning") {
+
+        if (!boss.rushWarned) {
+
+            boss.rushWarned = true;
+
+            sirenSound(2.0);
+        }
+
+        boss.rushTimer -= dt;
+
+        if (boss.rushTimer <= 0) {
+
+            boss.rushState = "dash";
+
+            const targetX = player.x;
+            const targetY = Math.max(player.y, H - 20);
+
+            const dx = targetX - boss.x;
+            const dy = targetY - boss.y;
+
+            const dist =
+                Math.max(
+                    1,
+                    Math.sqrt(dx * dx + dy * dy)
+                );
+
+            boss.rushVX = dx / dist * 1014;
+            boss.rushVY = dy / dist * 1014;
+
+            screenShake = Math.max(screenShake, 20);
+
+            tone(60, 0.4, "sawtooth", 0.08);
+        }
+    }
+
+    else if (boss.rushState === "dash") {
+
+        boss.x += boss.rushVX * dt * slowMotion;
+        boss.y += boss.rushVY * dt * slowMotion;
+
+        boss.x =
+            Math.max(
+                boss.width / 2,
+                Math.min(W - boss.width / 2, boss.x)
+            );
+
+        if (boss.y >= H - 60) {
+            boss.rushState = "retreat";
+        }
+    }
+
+    else if (boss.rushState === "retreat") {
+
+        const targetX = W / 2;
+        const targetY = 130;
+
+        const dx = targetX - boss.x;
+        const dy = targetY - boss.y;
+
+        const dist =
+            Math.max(
+                1,
+                Math.sqrt(dx * dx + dy * dy)
+            );
+
+        const speed = 260;
+
+        boss.x += (dx / dist) * speed * dt;
+        boss.y += (dy / dist) * speed * dt;
+
+        if (dist < 12) {
+
+            boss.x = targetX;
+            boss.y = targetY;
+
+            boss.rushState = "none";
+            boss.rushWarned = false;
+
+            boss.attackTimer =
+                Math.max(
+                    2.6,
+                    SETTINGS.boss.attackInterval /
+                    Math.min(2.2, difficultyMultiplier)
+                );
+        }
+    }
+}
+
+
+function bossRapidFire() {
+    if (!boss) return;
+    createEnemyBullet(boss.x, boss.y + 38, player.x, player.y, 330);
+}
+
+
+function bossSpecialAttack() {
+
+    if (!boss) return;
+
+    if (boss.attackPattern === 1) {
+        /* Shotgun: a broad, randomized fan. */
+        const count = 11;
+        const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
+        for (let i = 0; i < count; i++) {
+            const angle = aim + (i - (count - 1) / 2) * 0.115 + (Math.random() - 0.5) * 0.035;
+            const speed = 230 + Math.random() * 70;
+            enemyBullets.push({
+                x: boss.x, y: boss.y + 25,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                radius: 7,
+                kind: "boss"
+            });
+        }
+        screenShake = 10;
+        tone(150, 0.16, "sawtooth", 0.06);
+    }
+
+    else if (boss.attackPattern === 2) {
+        /* Rapid-fire burst aimed at the player's current position. */
+        for (let i = 0; i < 9; i++) {
+            const delay = i * 85;
+            setTimeout(() => {
+                if (!boss || gameState !== "playing") return;
+                createEnemyBullet(boss.x, boss.y + 35, player.x, player.y, 390 + i * 9);
+            }, delay);
+        }
+        screenShake = 6;
+        tone(480, 0.12, "square", 0.045);
+    }
+
+    else if (boss.attackPattern === 3) {
+        /* Sweeping laser: telegraph, then a moving beam of danger. */
+        boss.sweepAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
+        boss.sweepDirection = Math.random() < 0.5 ? -1 : 1;
+        boss.patternTime = 2.2;
+        boss.laserWarning = 0.65;
+        tone(85, 0.5, "sawtooth", 0.055);
+        screenShake = 12;
+    }
+
+    else if (boss.attackPattern === 4) {
+        /* The Death Rush: exact 2s warning, then a shield-piercing dash. */
+        boss.rushState = "warning";
+        boss.rushTimer = 2.0;
+        boss.rushWarned = false;
+    }
+
+    else if (boss.attackPattern === 5) {
+        /* Lock-On Missile: a heavy homing projectile the player must shoot down. */
+        createMissile(boss.x, boss.y + 40);
+        tone(200, 0.3, "sawtooth", 0.05);
+        screenShake = 6;
+    }
+
+    else if (boss.attackPattern === 6) {
+        /* Chakra Spin: a rotating spiral of projectiles fired in place. */
+        boss.patternTime = 3.0;
+        boss.chakraAngle = 0;
+        boss.chakraSpawnTimer = 0;
+        tone(300, 0.4, "sawtooth", 0.05);
+        screenShake = 8;
+    }
+}
+
+
+function drawBossLaser() {
+    if (!boss || boss.attackPattern !== 3 || boss.patternTime <= 0) return;
+
+    const warning = boss.laserWarning > 0;
+    const angle = boss.sweepAngle;
+    const length = Math.max(W, H) * 1.35;
+
+    ctx.save();
+    ctx.translate(boss.x, boss.y);
+    ctx.rotate(angle);
+    ctx.globalAlpha = warning ? 0.25 + Math.sin(performance.now() / 55) * 0.12 : 0.72;
+    ctx.fillStyle = warning ? "#fff" : "#ff315d";
+    ctx.shadowBlur = warning ? 18 : 35;
+    ctx.shadowColor = "#ff1744";
+    ctx.fillRect(0, -8, length, 16);
+    ctx.fillStyle = "#fff";
+    ctx.globalAlpha *= 0.75;
+    ctx.fillRect(0, -2, length, 4);
+    ctx.restore();
+}
+
+
+function drawBoss() {
+
+    if (!boss) return;
+
+    ctx.save();
+    ctx.translate(boss.x, boss.y);
+
+    const pulse = 1 + Math.sin(performance.now() / 180) * 0.04;
+    ctx.scale(pulse, pulse);
+
+    const rushWarning = boss.rushState === "warning";
+
+    const rushFlash =
+        rushWarning &&
+        Math.floor(performance.now() / 70) % 2 === 0;
+
+    ctx.beginPath();
+    ctx.moveTo(0, -boss.height / 2);
+    ctx.lineTo(boss.width / 2, -20);
+    ctx.lineTo(boss.width / 2 - 25, boss.height / 2);
+    ctx.lineTo(-boss.width / 2 + 25, boss.height / 2);
+    ctx.lineTo(-boss.width / 2, -20);
+    ctx.closePath();
+
+    ctx.fillStyle = rushFlash ? "#fff" : "#301020";
+    ctx.strokeStyle =
+        boss.attackPattern === 3
+            ? "#ff315d"
+            : rushWarning
+                ? "#fff"
+                : "#f45";
+    ctx.lineWidth = 4;
+    ctx.shadowBlur = 25;
+    ctx.shadowColor = "#f00";
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(0, 0, 25 + Math.sin(performance.now() / 80) * 3, 0, Math.PI * 2);
+    ctx.fillStyle =
+        rushFlash
+            ? "#fff"
+            : boss.attackPattern === 3
+                ? "#ff5b7f"
+                : "#ff2222";
+    ctx.shadowBlur = 30;
+    ctx.shadowColor = "#f00";
+    ctx.fill();
+
+    /* Chakra Spin aura rings */
+
+    if (boss.attackPattern === 6 && boss.patternTime > 0) {
+
+        for (let ring = 0; ring < 2; ring++) {
+
+            ctx.beginPath();
+
+            ctx.arc(
+                0,
+                0,
+                45 + ring * 14,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.strokeStyle =
+                `rgba(255,150,255,${0.5 - ring * 0.15})`;
+
+            ctx.lineWidth = 3;
+
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = "#f0f";
+
+            ctx.stroke();
+        }
+    }
+
+    ctx.restore();
+
+    drawBossLaser();
+}
+
+
+/* =========================================================
+   BOSS DAMAGE
+   ========================================================= */
+
+function damageBoss(damage) {
+
+    if (!boss) return;
+
+    boss.health -= damage;
+
+    particles.push({
+
+        x: boss.x,
+        y: boss.y,
+
+        life: 0.15,
+        maxLife: 0.15,
+
+        size: 25,
+
+        type: "flash"
+    });
+
+    screenShake = 4;
+
+    if (boss.health <= 0) {
+
+        score +=
+            SETTINGS.score.boss *
+            comboMultiplier;
+
+        kills++;
+
+        createExplosion(
+            boss.x,
+            boss.y,
+            80
+        );
+
+        explosionSound();
+
+        boss = null;
+
+        bossActive = false;
+
+        bossNumber++;
+        nextBossScore = bossScoreThreshold(bossNumber);
+
+        document.getElementById(
+            "bossHud"
+        ).style.display = "none";
+
+        player.weaponPower = Math.min(
+            SETTINGS.laser.maxPower,
+            player.weaponPower + 1
+        );
+
+        unlockAchievement(
+            "BOSS DESTROYER"
+        );
+    }
+}
+
+
+/* =========================================================
+   10. POWER-UPS
+   ========================================================= */
+
+let powerUpTimer = 2.5;
+
+
+/* Base weights.
+   Balancing pass: Shield base rate up 10% (22 -> 24.2),
+   Weapon base rate up 5% (12 -> 12.6).
+   EMP base rate up 5% (5 -> 5.25) to help players lean on the
+   Time-Freeze crowd-control pick more often.
+   Drone stays a deliberately rare pick at base — see the dynamic
+   "no active drones" boost in getPowerUpWeights() below. */
+const POWERUP_BASE_WEIGHTS = {
+    weapon: 12.6,   // +5% from 12
+    shield: 24.2,   // +10% from 22
+    rapid: 10,
+    bomb: 8,
+    life: 8,
+    damage: 10,
+    magnet: 10,
+    slow: 8,
+    speed: 12,
+    emp: 5.25,      // +5% from 5
+    drone: 5
+};
+
+/* Dynamic "catch-up" weighting — recomputed on every spawn roll so it
+   always reflects the player's *current* state (weapon stacks, lives,
+   drones). */
+function getPowerUpWeights() {
+
+    const weights = { ...POWERUP_BASE_WEIGHTS };
+
+    /* Weapon Recovery: after a death resets the weapon to 1x, boost the
+       Weapon Multiplier drop chance by 20%. Stays on while stacking back
+       up (1x, 2x) and switches off automatically once 3x is reached. */
+    if (player.weaponPower < 3) {
+        weights.weapon *= 1.2;
+    }
+
+    /* Life Recovery: while the player has fewer than 3 lives, boost the
+       Life power-up drop chance by 20% to help them recover. */
+    if (player.lives < 3) {
+        weights.life *= 1.2;
+    }
+
+    /* Dynamic Drone Drop Rate: while the player has no active Support
+       Drones, boost the Drone power-up drop chance by 30% to help them
+       get their squadron back. Once at least one drone is active, the
+       weight returns to normal. */
+    if (drones.length === 0) {
+        weights.drone *= 1.3;
+    }
+
+    return weights;
+}
+
+
+function pickPowerUpType() {
+
+    const weights = getPowerUpWeights();
+
+    const totalWeight =
+        Object.values(weights)
+            .reduce((sum, w) => sum + w, 0);
+
+    let roll =
+        Math.random() *
+        totalWeight;
+
+    for (
+        const type in weights
+    ) {
+
+        roll -= weights[type];
+
+        if (roll <= 0) {
+            return type;
+        }
+    }
+
+    return "weapon";
+}
+
+
+function spawnPowerUp(
+    x = Math.random() * W,
+    y = -30
+) {
+
+    const type = pickPowerUpType();
+
+    powerUps.push({
+
+        x,
+        y,
+
+        type,
+
+        radius: 16,
+
+        rotation: 0,
+
+        life:
+            SETTINGS.powerUp.lifetime
+    });
+}
+
+
+function updatePowerUps(dt) {
+
+    powerUpTimer -= dt;
+
+    if (powerUpTimer <= 0) {
+
+        powerUpTimer =
+            SETTINGS.powerUp.spawnMin +
+            Math.random() * (SETTINGS.powerUp.spawnMax - SETTINGS.powerUp.spawnMin);
+
+        spawnPowerUp();
+
+        /* During boss fights, keep recovery tools flowing without making them free. */
+        if (bossActive && Math.random() < 0.28) {
+            spawnPowerUp(Math.random() * W, -60);
+        }
+    }
+
+    for (
+        let i = powerUps.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const p = powerUps[i];
+
+        p.y +=
+            SETTINGS.powerUp.speed *
+            dt;
+
+        p.rotation += dt * 3;
+
+        p.life -= dt;
+
+        /* Magnet */
+
+        if (
+            player.magnet > 0
+        ) {
+
+            const dx =
+                player.x - p.x;
+
+            const dy =
+                player.y - p.y;
+
+            const dist =
+                Math.sqrt(
+                    dx * dx +
+                    dy * dy
+                );
+
+            if (dist < 250) {
+
+                p.x +=
+                    dx / dist *
+                    400 *
+                    dt;
+
+                p.y +=
+                    dy / dist *
+                    400 *
+                    dt;
+            }
+        }
+
+        if (
+            p.y > H + 50 ||
+            p.life <= 0
+        ) {
+
+            powerUps.splice(i, 1);
+        }
+    }
+}
+
+
+/* =========================================================
+   DRAW POWER-UPS
+   ========================================================= */
+
+function drawPowerUps() {
+
+    for (const p of powerUps) {
+
+        ctx.save();
+
+        ctx.translate(
+            p.x,
+            p.y
+        );
+
+        ctx.rotate(
+            p.rotation
+        );
+
+        let symbol = "?";
+
+        if (p.type === "weapon") symbol = "+";
+        if (p.type === "shield") symbol = "S";
+        if (p.type === "rapid") symbol = "R";
+        if (p.type === "bomb") symbol = "B";
+        if (p.type === "life") symbol = "♥";
+        if (p.type === "damage") symbol = "D";
+        if (p.type === "magnet") symbol = "M";
+        if (p.type === "slow") symbol = "T";
+        if (p.type === "speed") symbol = "»";
+        if (p.type === "emp") symbol = "⚡";
+        if (p.type === "drone") symbol = "W";
+
+        const POWERUP_COLORS = {
+            weapon: "#168cff",
+            shield: "#22ccff",
+            rapid: "#ffcc33",
+            bomb: "#ff6633",
+            life: "#ff4f88",
+            damage: "#ff3355",
+            magnet: "#aa66ff",
+            slow: "#33ffcc",
+            speed: "#ffee33",
+            emp: "#00eaff",
+            drone: "#39ff88"
+        };
+
+        const fillColor =
+            POWERUP_COLORS[p.type] || "#168cff";
+
+        ctx.beginPath();
+
+        if (p.type === "emp") {
+
+            /* EMP is visually distinct — a glowing cyan hexagon
+               instead of the standard diamond. */
+
+            for (let s = 0; s < 6; s++) {
+
+                const angle =
+                    (Math.PI / 3) * s -
+                    Math.PI / 2;
+
+                const hx = Math.cos(angle) * p.radius;
+                const hy = Math.sin(angle) * p.radius;
+
+                if (s === 0) {
+                    ctx.moveTo(hx, hy);
+                } else {
+                    ctx.lineTo(hx, hy);
+                }
+            }
+
+            ctx.closePath();
+        }
+
+        else {
+
+            ctx.moveTo(
+                0,
+                -p.radius
+            );
+
+            ctx.lineTo(
+                p.radius,
+                0
+            );
+
+            ctx.lineTo(
+                0,
+                p.radius
+            );
+
+            ctx.lineTo(
+                -p.radius,
+                0
+            );
+
+            ctx.closePath();
+        }
+
+        ctx.fillStyle = fillColor;
+
+        ctx.strokeStyle = "#fff";
+
+        ctx.lineWidth = 2;
+
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = fillColor;
+
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.rotate(
+            -p.rotation
+        );
+
+        ctx.fillStyle = "white";
+
+        ctx.font =
+            "bold 18px Courier New";
+
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        ctx.fillText(
+            symbol,
+            0,
+            1
+        );
+
+        ctx.restore();
+    }
+}
+
+
+/* =========================================================
+   POWER-UP EFFECTS
+   ========================================================= */
+
+function collectPowerUp(p) {
+
+    powerSound();
+
+    if (p.type === "weapon") {
+
+        player.weaponPower = Math.min(
+            SETTINGS.laser.maxPower,
+            player.weaponPower + 1
+        );
+
+        unlockAchievement(
+            "WEAPON MASTER"
+        );
+    }
+
+    else if (p.type === "shield") {
+
+        player.shieldCount =
+            Math.min(3, player.shieldCount + 1);
+
+        if (player.shieldCount >= 3) {
+            unlockAchievement("FULLY SHIELDED");
+        }
+    }
+
+    else if (p.type === "speed") {
+
+        player.speedBoosted = true;
+
+        player.speed =
+            SETTINGS.player.speed * 1.5;
+
+        unlockAchievement("BREAKNECK");
+    }
+
+    else if (p.type === "rapid") {
+
+        player.rapidFire = 8;
+    }
+
+    else if (p.type === "bomb") {
+
+        player.bombCount++;
+
+        unlockAchievement(
+            "BOMBER"
+        );
+    }
+
+    else if (p.type === "life") {
+
+        player.lives =
+            Math.min(
+                player.lives + 1,
+                5
+            );
+    }
+
+    else if (p.type === "damage") {
+
+        player.damageBoost = 8;
+    }
+
+    else if (p.type === "magnet") {
+
+        player.magnet = 10;
+    }
+
+    else if (p.type === "slow") {
+
+        slowMotion = 0.45;
+
+        setTimeout(() => {
+            slowMotion = 1;
+        }, 5000);
+    }
+
+    else if (p.type === "emp") {
+
+        /* EMP Time-Freeze: locks down every standard mob, homing
+           missile, and asteroid in place for 3.5s. The player can
+           still move and fire freely to clean house. */
+
+        empFreezeTimer = 3.5;
+        empFreezeDuration = 3.5;
+
+        empWaveOriginX = p.x;
+        empWaveOriginY = p.y;
+
+        screenShake = Math.max(screenShake, 8);
+
+        empSound();
+
+        unlockAchievement("SYSTEM SHOCK");
+    }
+
+    else if (p.type === "drone") {
+
+        /* Orbital Support Drones: fills both wingman slots (spawning
+           any that are missing) and refreshes their 15s timer, up to
+           the 2-drone cap. */
+
+        spawnOrRefreshDrone("left");
+        spawnOrRefreshDrone("right");
+
+        unlockAchievement("SQUADRON LEADER");
+    }
+
+    createExplosion(
+        p.x,
+        p.y,
+        25
+    );
+}
+
+
+/* =========================================================
+   11. COMBO SYSTEM
+   ========================================================= */
+
+let comboMultiplier = 1;
+
+let comboTimer = 0;
+
+
+function addScore(base) {
+
+    score +=
+        Math.floor(
+            base *
+            comboMultiplier
+        );
+
+    comboTimer =
+        SETTINGS.combo.timeout;
+
+    comboMultiplier =
+        Math.min(
+            SETTINGS.combo.maxMultiplier,
+            comboMultiplier + 0.25
+        );
+
+    maxCombo =
+        Math.max(
+            maxCombo,
+            Math.ceil(comboMultiplier)
+        );
+
+    if (
+        comboMultiplier >= 5
+    ) {
+
+        unlockAchievement(
+            "COMBO MACHINE"
+        );
+    }
+}
+
+
+function updateCombo(dt) {
+
+    if (comboTimer > 0) {
+
+        comboTimer -= dt;
+
+    }
+
+    else {
+
+        comboMultiplier =
+            Math.max(
+                1,
+                comboMultiplier - dt * 2
+            );
+    }
+}
+
+
+/* =========================================================
+   12. PARTICLES
+   ========================================================= */
+
+function createExplosion(
+    x,
+    y,
+    size = 30
+) {
+
+    const count =
+        Math.floor(
+            size * 0.8
+        );
+
+    for (let i = 0; i < count; i++) {
+
+        const angle =
+            Math.random() *
+            Math.PI *
+            2;
+
+        const speed =
+            50 +
+            Math.random() *
+            size *
+            4;
+
+        particles.push({
+
+            x,
+            y,
+
+            vx:
+                Math.cos(angle) *
+                speed,
+
+            vy:
+                Math.sin(angle) *
+                speed,
+
+            life:
+                0.35 +
+                Math.random() *
+                0.55,
+
+            maxLife:
+                0.9,
+
+            size:
+                1 +
+                Math.random() * 4,
+
+            type:
+                "particle"
+        });
+    }
+
+    screenShake =
+        Math.min(
+            20,
+            screenShake +
+            size * 0.15
+        );
+}
+
+
+function updateParticles(dt) {
+
+    for (
+        let i = particles.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const p = particles[i];
+
+        p.life -= dt;
+
+        if (
+            p.vx !== undefined
+        ) {
+
+            p.x +=
+                p.vx *
+                dt;
+
+            p.y +=
+                p.vy *
+                dt;
+
+            p.vx *= 0.97;
+            p.vy *= 0.97;
+        }
+
+        if (
+            p.life <= 0
+        ) {
+
+            particles.splice(i, 1);
+        }
+    }
+}
+
+
+function drawParticles() {
+
+    for (const p of particles) {
+
+        const alpha =
+            Math.max(
+                0,
+                p.life / p.maxLife
+            );
+
+        ctx.globalAlpha =
+            alpha;
+
+        if (
+            p.type === "flash"
+        ) {
+
+            ctx.beginPath();
+
+            ctx.arc(
+                p.x,
+                p.y,
+                p.size *
+                (
+                    1 +
+                    (1 - alpha)
+                ),
+                0,
+                Math.PI * 2
+            );
+
+            ctx.fillStyle =
+                "#fff";
+
+            ctx.shadowBlur =
+                20;
+
+            ctx.shadowColor =
+                "#6cf";
+
+            ctx.fill();
+        }
+
+        else {
+
+            ctx.beginPath();
+
+            ctx.arc(
+                p.x,
+                p.y,
+                p.size,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.fillStyle =
+                "#fff";
+
+            ctx.fill();
+        }
+    }
+
+    ctx.globalAlpha = 1;
+
+    ctx.shadowBlur = 0;
+}
+
+
+/* =========================================================
+   13. STARFIELD
+   ========================================================= */
+
+function createStars() {
+
+    stars = [];
+
+    for (
+        let i = 0;
+        i < 180;
+        i++
+    ) {
+
+        stars.push({
+
+            x:
+                Math.random() * W,
+
+            y:
+                Math.random() * H,
+
+            size:
+                Math.random() * 2 + 0.5,
+
+            speed:
+                20 +
+                Math.random() * 120,
+
+            layer:
+                Math.random()
+        });
+    }
+}
+
+
+function updateStars(dt) {
+
+    for (const s of stars) {
+
+        s.y +=
+            s.speed *
+            dt *
+            slowMotion;
+
+        if (
+            s.y > H
+        ) {
+
+            s.y = 0;
+
+            s.x =
+                Math.random() * W;
+        }
+    }
+}
+
+
+function drawStars() {
+
+    for (const s of stars) {
+
+        ctx.globalAlpha =
+            0.3 +
+            s.layer *
+            0.7;
+
+        ctx.fillStyle =
+            "#fff";
+
+        ctx.fillRect(
+            s.x,
+            s.y,
+            s.size,
+            s.size
+        );
+    }
+
+    ctx.globalAlpha = 1;
+}
+
+
+/* =========================================================
+   14. COLLISION HELPERS
+   ========================================================= */
+
+function circleRectCollision(
+    cx,
+    cy,
+    radius,
+    rx,
+    ry,
+    rw,
+    rh
+) {
+
+    const closestX =
+        Math.max(
+            rx,
+            Math.min(
+                cx,
+                rx + rw
+            )
+        );
+
+    const closestY =
+        Math.max(
+            ry,
+            Math.min(
+                cy,
+                ry + rh
+            )
+        );
+
+    const dx =
+        cx - closestX;
+
+    const dy =
+        cy - closestY;
+
+    return (
+        dx * dx +
+        dy * dy
+    ) <= radius * radius;
+}
+
+
+function distance(
+    x1,
+    y1,
+    x2,
+    y2
+) {
+
+    const dx =
+        x1 - x2;
+
+    const dy =
+        y1 - y2;
+
+    return Math.sqrt(
+        dx * dx +
+        dy * dy
+    );
+}
+
+
+/* =========================================================
+   15. COLLISION DETECTION
+   ========================================================= */
+
+function checkCollisions() {
+
+    /* -----------------------------------------------------
+       Lasers vs asteroids
+       ----------------------------------------------------- */
+
+    for (
+        let li = lasers.length - 1;
+        li >= 0;
+        li--
+    ) {
+
+        const laser = lasers[li];
+
+        let destroyedLaser =
+            false;
+
+        for (
+            let ai = asteroids.length - 1;
+            ai >= 0;
+            ai--
+        ) {
+
+            const a =
+                asteroids[ai];
+
+            if (
+                distance(
+                    laser.x,
+                    laser.y,
+                    a.x,
+                    a.y
+                ) <
+                a.radius +
+                8
+            ) {
+
+                a.health -=
+                    laser.damage;
+
+                lasers.splice(
+                    li,
+                    1
+                );
+
+                destroyedLaser = true;
+
+                createExplosion(
+                    laser.x,
+                    laser.y,
+                    10
+                );
+
+                if (
+                    a.health <= 0
+                ) {
+
+                    addScore(
+                        SETTINGS.score.asteroid
+                    );
+
+                    kills++;
+
+                    explosionSound();
+
+                    createExplosion(
+                        a.x,
+                        a.y,
+                        a.radius
+                    );
+
+                    /* Splitting asteroid */
+
+                    splitAsteroid(a);
+
+                    asteroids.splice(
+                        ai,
+                        1
+                    );
+                }
+
+                else {
+
+                    hitSound();
+                }
+
+                break;
+            }
+        }
+
+        if (destroyedLaser) {
+            continue;
+        }
+    }
+
+
+    /* -----------------------------------------------------
+       Lasers vs enemies
+       ----------------------------------------------------- */
+
+    for (
+        let li = lasers.length - 1;
+        li >= 0;
+        li--
+    ) {
+
+        const laser =
+            lasers[li];
+
+        let hit = false;
+
+        for (
+            let ei = enemies.length - 1;
+            ei >= 0;
+            ei--
+        ) {
+
+            const e =
+                enemies[ei];
+
+            if (
+                circleRectCollision(
+                    laser.x,
+                    laser.y,
+                    6,
+                    e.x - e.width / 2,
+                    e.y - e.height / 2,
+                    e.width,
+                    e.height
+                )
+            ) {
+
+                if (e.type === "kamikaze") {
+
+                    /* Detonator Rework: the Kamikaze Detonator is
+                       completely invincible to player weapons and
+                       drone weapons (both fire through this same
+                       laser pool). The shot is absorbed with a
+                       harmless flash — no damage, no destruction.
+                       Dodging its dash is the only counter. */
+
+                    e.flashTimer = 0.08;
+
+                    lasers.splice(
+                        li,
+                        1
+                    );
+
+                    hit = true;
+
+                    break;
+                }
+
+                e.health -=
+                    laser.damage;
+
+                e.flashTimer = 0.12;
+
+                lasers.splice(
+                    li,
+                    1
+                );
+
+                hit = true;
+
+                if (
+                    e.health <= 0
+                ) {
+
+                    let points =
+                        SETTINGS.score.fast;
+
+                    if (
+                        e.type === "shooter"
+                    ) {
+                        points =
+                            SETTINGS.score.shooter;
+                    }
+
+                    if (
+                        e.type === "armored"
+                    ) {
+                        points =
+                            SETTINGS.score.armored;
+                    }
+
+                    if (
+                        e.type === "ufo"
+                    ) {
+                        points =
+                            SETTINGS.score.ufo;
+                    }
+
+                    if (
+                        e.type === "kamikaze"
+                    ) {
+                        points =
+                            SETTINGS.score.kamikaze;
+                    }
+
+                    if (
+                        e.type === "missile"
+                    ) {
+                        points =
+                            SETTINGS.score.missile;
+                    }
+
+                    addScore(points);
+
+                    kills++;
+
+                    createExplosion(
+                        e.x,
+                        e.y,
+                        30
+                    );
+
+                    explosionSound();
+
+                    enemies.splice(
+                        ei,
+                        1
+                    );
+                }
+
+                break;
+            }
+        }
+
+        if (hit) continue;
+    }
+
+
+    /* -----------------------------------------------------
+       Lasers vs boss
+       ----------------------------------------------------- */
+
+    if (boss) {
+
+        for (
+            let i = lasers.length - 1;
+            i >= 0;
+            i--
+        ) {
+
+            const laser =
+                lasers[i];
+
+            if (
+                distance(
+                    laser.x,
+                    laser.y,
+                    boss.x,
+                    boss.y
+                ) <
+                boss.width * 0.45
+            ) {
+
+                damageBoss(
+                    laser.damage
+                );
+
+                lasers.splice(
+                    i,
+                    1
+                );
+
+                break;
+            }
+        }
+    }
+
+
+    /* -----------------------------------------------------
+       Power-ups vs player
+       ----------------------------------------------------- */
+
+    for (
+        let i = powerUps.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const p =
+            powerUps[i];
+
+        if (
+            distance(
+                p.x,
+                p.y,
+                player.x,
+                player.y
+            ) <
+            p.radius + 25
+        ) {
+
+            collectPowerUp(p);
+
+            powerUps.splice(
+                i,
+                1
+            );
+        }
+    }
+
+
+    /* -----------------------------------------------------
+       Boss sweeping laser vs player
+       ----------------------------------------------------- */
+    if (boss && boss.attackPattern === 3 && boss.patternTime > 0 && boss.laserWarning <= 0 && player.invulnerable <= 0) {
+        const angle = boss.sweepAngle;
+        const dx = player.x - boss.x;
+        const dy = player.y - boss.y;
+        const along = dx * Math.cos(angle) + dy * Math.sin(angle);
+        const across = Math.abs(-dx * Math.sin(angle) + dy * Math.cos(angle));
+        if (along > 0 && across < 15) {
+            damagePlayer();
+        }
+    }
+
+
+    /* -----------------------------------------------------
+       Enemy bullets / asteroids / enemies vs drones
+       (meat shields — intercept before the player is checked)
+       ----------------------------------------------------- */
+
+    for (
+        let i = enemyBullets.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const b = enemyBullets[i];
+
+        for (
+            let di = drones.length - 1;
+            di >= 0;
+            di--
+        ) {
+
+            const d = drones[di];
+
+            if (
+                distance(b.x, b.y, d.x, d.y) <
+                b.radius + 18
+            ) {
+
+                enemyBullets.splice(i, 1);
+
+                createExplosion(d.x, d.y, 20);
+                hitSound();
+
+                drones.splice(di, 1);
+
+                break;
+            }
+        }
+    }
+
+    for (
+        let i = asteroids.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const a = asteroids[i];
+
+        for (
+            let di = drones.length - 1;
+            di >= 0;
+            di--
+        ) {
+
+            const d = drones[di];
+
+            if (
+                distance(a.x, a.y, d.x, d.y) <
+                a.radius + 18
+            ) {
+
+                asteroids.splice(i, 1);
+
+                createExplosion(d.x, d.y, 25);
+                explosionSound();
+
+                drones.splice(di, 1);
+
+                break;
+            }
+        }
+    }
+
+    for (
+        let i = enemies.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const e = enemies[i];
+
+        /* Detonator Rework: the Kamikaze Detonator completely
+           ignores Support Drones. It never destroys a drone here —
+           it passes straight through the meat-shield check and is
+           only ever resolved against the player directly below. */
+
+        if (e.type === "kamikaze") {
+            continue;
+        }
+
+        for (
+            let di = drones.length - 1;
+            di >= 0;
+            di--
+        ) {
+
+            const d = drones[di];
+
+            if (
+                distance(e.x, e.y, d.x, d.y) <
+                18 + Math.max(e.width, e.height) / 2
+            ) {
+
+                enemies.splice(i, 1);
+
+                createExplosion(d.x, d.y, 30);
+                explosionSound();
+
+                drones.splice(di, 1);
+
+                break;
+            }
+        }
+    }
+
+
+    /* -----------------------------------------------------
+       Enemy bullets vs player
+       ----------------------------------------------------- */
+
+    for (
+        let i = enemyBullets.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const b =
+            enemyBullets[i];
+
+        if (
+            distance(
+                b.x,
+                b.y,
+                player.x,
+                player.y
+            ) <
+            b.radius + 20
+        ) {
+
+            enemyBullets.splice(
+                i,
+                1
+            );
+
+            damagePlayer();
+
+            break;
+        }
+    }
+
+
+    /* -----------------------------------------------------
+       Asteroids vs player
+       ----------------------------------------------------- */
+
+    if (
+        player.invulnerable <= 0
+    ) {
+
+        for (
+            let i = asteroids.length - 1;
+            i >= 0;
+            i--
+        ) {
+
+            const a =
+                asteroids[i];
+
+            if (
+                distance(
+                    a.x,
+                    a.y,
+                    player.x,
+                    player.y
+                ) <
+                a.radius + 24
+            ) {
+
+                asteroids.splice(
+                    i,
+                    1
+                );
+
+                damagePlayer();
+
+                break;
+            }
+        }
+    }
+
+
+    /* -----------------------------------------------------
+       Enemies vs player
+       ----------------------------------------------------- */
+
+    if (
+        player.invulnerable <= 0
+    ) {
+
+        for (
+            let i = enemies.length - 1;
+            i >= 0;
+            i--
+        ) {
+
+            const e =
+                enemies[i];
+
+            if (
+                distance(
+                    e.x,
+                    e.y,
+                    player.x,
+                    player.y
+                ) <
+                30 +
+                Math.max(
+                    e.width,
+                    e.height
+                ) / 2
+            ) {
+
+                enemies.splice(
+                    i,
+                    1
+                );
+
+                if (e.type === "kamikaze") {
+
+                    /* Shield-piercing detonation: bypasses shield
+                       layers entirely, and — since drones are now
+                       permanent otherwise — wipes the Support Drone
+                       squadron as the cost of an unavoidable hit
+                       from an unkillable threat. */
+
+                    createExplosion(
+                        player.x,
+                        player.y,
+                        70
+                    );
+
+                    explosionSound();
+
+                    screenShake =
+                        Math.max(screenShake, 25);
+
+                    damagePlayer({ pierce: true, wipeDrones: true });
+                }
+
+                else if (e.type === "missile") {
+
+                    /* Heavy hit: strips 2 shield layers, or a life if fewer than 2 remain */
+
+                    createExplosion(
+                        player.x,
+                        player.y,
+                        45
+                    );
+
+                    explosionSound();
+
+                    screenShake =
+                        Math.max(screenShake, 16);
+
+                    damagePlayer({ shieldHits: 2 });
+                }
+
+                else {
+
+                    damagePlayer();
+                }
+
+                break;
+            }
+        }
+    }
+
+
+    /* -----------------------------------------------------
+       Boss vs player
+       ----------------------------------------------------- */
+
+    if (
+        boss &&
+        player.invulnerable <= 0
+    ) {
+
+        if (
+            distance(
+                boss.x,
+                boss.y,
+                player.x,
+                player.y
+            ) <
+            boss.width * 0.45
+        ) {
+
+            if (boss.rushState === "dash") {
+
+                /* Death Rush contact: ignores all shields, costs 1 life,
+                   and — like the unkillable Detonator — wipes the
+                   Support Drone squadron. Getting caught by it means
+                   losing everything. */
+
+                damagePlayer({ pierce: true, wipeDrones: true });
+            }
+
+            else {
+
+                damagePlayer();
+            }
+        }
+    }
+}
+
+
+/* =========================================================
+   PLAYER DAMAGE
+   ========================================================= */
+
+function damagePlayer(options = {}) {
+
+    if (
+        player.invulnerable > 0
+    ) {
+        return;
+    }
+
+    const pierce = options.pierce || false;
+
+    const shieldHits = options.shieldHits || 1;
+
+    const wipeDrones = options.wipeDrones || false;
+
+    /* Any registered hit cancels a temporary speed boost */
+
+    if (player.speedBoosted) {
+
+        player.speedBoosted = false;
+
+        player.speed =
+            SETTINGS.player.speed;
+    }
+
+    if (
+        !pierce &&
+        player.shieldCount >= shieldHits
+    ) {
+
+        player.shieldCount -= shieldHits;
+
+        createExplosion(
+            player.x,
+            player.y,
+            20
+        );
+
+        hitSound();
+
+        /* Brief grace period so one collision moment can't
+           strip multiple shield layers at once. */
+
+        player.invulnerable = 0.5;
+
+        return;
+    }
+
+    if (
+        !pierce &&
+        player.shieldCount > 0
+    ) {
+
+        /* Not enough layers to fully absorb a heavy hit —
+           the remaining shield is stripped and the attack
+           still carries through to a life loss below. */
+
+        player.shieldCount = 0;
+    }
+
+    player.lives--;
+
+    player.weaponPower = 1;
+
+    player.invulnerable =
+        SETTINGS.player.invulnerabilityTime;
+
+    player.x = W / 2;
+
+    player.y = H - 90;
+
+    asteroids = [];
+
+    enemies = [];
+
+    enemyBullets = [];
+
+    lasers = [];
+
+    /* An unkillable Detonator hit wipes the Support Drone squadron —
+       the one way permanent drones are lost outside of one sacrificing
+       itself for the player. */
+
+    if (wipeDrones) {
+
+        drones = [];
+    }
+
+    comboMultiplier = 1;
+
+    comboTimer = 0;
+
+    flashTimer = 0.25;
+
+    screenShake = 15;
+
+    hitSound();
+
+    createExplosion(
+        player.x,
+        player.y,
+        45
+    );
+
+    if (
+        player.lives <= 0
+    ) {
+
+        endGame();
+    }
+}
+
+
+/* =========================================================
+   16. BOMB
+   ========================================================= */
+
+function useBomb() {
+
+    if (
+        player.bombCount <= 0
+    ) {
+        return;
+    }
+
+    player.bombCount--;
+
+    enemyBullets = [];
+
+    asteroids = [];
+
+    /* Missiles (boss or mob) survive the blast, and the Kamikaze
+       Detonator is completely invincible to the bomb — everything
+       else is wiped instantly, ignoring HP. */
+
+    enemies = enemies.filter(
+        e => e.type === "missile" || e.type === "kamikaze"
+    );
+
+    if (boss) {
+
+        damageBoss(
+            20
+        );
+    }
+
+    createExplosion(
+        player.x,
+        player.y,
+        150
+    );
+
+    screenShake = 30;
+
+    tone(
+        60,
+        0.5,
+        "sawtooth",
+        0.1
+    );
+}
+
+
+/* =========================================================
+   17. LEVEL / DIFFICULTY
+   ========================================================= */
+
+function updateDifficulty() {
+
+    level =
+        Math.floor(
+            score / 250
+        ) + 1;
+
+    if (
+        score >=
+        nextBossScore &&
+        !bossActive
+    ) {
+
+        createBoss();
+    }
+
+    difficultyMultiplier =
+        SETTINGS.difficulty[
+            difficulty
+        ] *
+        (
+            1 +
+            (level - 1) *
+            0.05
+        );
+}
+
+
+/* =========================================================
+   18. ACHIEVEMENTS
+   ========================================================= */
+
+const achievements = {};
+
+function unlockAchievement(name) {
+
+    if (
+        achievements[name]
+    ) {
+        return;
+    }
+
+    achievements[name] = true;
+
+    const popup =
+        document.getElementById(
+            "achievementPopup"
+        );
+
+    document.getElementById(
+        "achievementText"
+    ).textContent =
+        name;
+
+    popup.classList.remove(
+        "show"
+    );
+
+    void popup.offsetWidth;
+
+    popup.classList.add(
+        "show"
+    );
+}
+
+
+/* =========================================================
+   19. HUD
+   ========================================================= */
+
+function updateHUD() {
+
+    document.getElementById(
+        "score"
+    ).textContent =
+        score;
+
+    document.getElementById(
+        "highScore"
+    ).textContent =
+        highScore;
+
+    document.getElementById(
+        "level"
+    ).textContent =
+        level;
+
+    document.getElementById(
+        "lives"
+    ).textContent =
+        "♥".repeat(
+            player.lives
+        );
+
+    const weaponHud = document.getElementById("weapon");
+    weaponHud.textContent = Math.min(SETTINGS.laser.maxPower, player.weaponPower) + "x";
+    weaponHud.style.color = player.weaponPower >= SETTINGS.laser.maxPower ? "#ffe45c" : "";
+    weaponHud.style.textShadow = player.weaponPower >= SETTINGS.laser.maxPower
+        ? "0 0 6px #fff, 0 0 18px #ff7a00"
+        : "";
+
+    document.getElementById(
+        "combo"
+    ).textContent =
+        "x" +
+        comboMultiplier.toFixed(1);
+
+    document.getElementById(
+        "shieldHud"
+    ).textContent =
+        "●".repeat(player.shieldCount) +
+        "○".repeat(3 - player.shieldCount);
+
+    if (boss) {
+
+        const percentage =
+            Math.max(
+                0,
+                boss.health /
+                boss.maxHealth *
+                100
+            );
+
+        document.getElementById(
+            "bossHealth"
+        ).style.width =
+            percentage + "%";
+    }
+}
+
+
+/* =========================================================
+   20. SCREEN EFFECTS
+   ========================================================= */
+
+function drawScreenEffects() {
+
+    if (
+        flashTimer > 0
+    ) {
+
+        ctx.fillStyle =
+            "rgba(255,255,255,0.25)";
+
+        ctx.fillRect(
+            0,
+            0,
+            W,
+            H
+        );
+    }
+
+    /* EMP Time-Freeze: a subtle blue tint over everything, plus an
+       expanding energy wave sweeping out from the pickup point. */
+
+    if (
+        empFreezeTimer > 0
+    ) {
+
+        const progress =
+            1 - empFreezeTimer / empFreezeDuration;
+
+        ctx.save();
+
+        ctx.fillStyle =
+            "rgba(0, 220, 255, 0.10)";
+
+        ctx.fillRect(0, 0, W, H);
+
+        const waveRadius =
+            progress * Math.max(W, H) * 1.15;
+
+        ctx.beginPath();
+
+        ctx.arc(
+            empWaveOriginX,
+            empWaveOriginY,
+            waveRadius,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.strokeStyle =
+            "rgba(0, 234, 255, " +
+            Math.max(0, 0.65 * (1 - progress)) +
+            ")";
+
+        ctx.lineWidth = 6;
+
+        ctx.shadowBlur = 22;
+        ctx.shadowColor = "#00eaff";
+
+        ctx.stroke();
+
+        ctx.restore();
+    }
+}
+
+
+/* =========================================================
+   21. GAME START
+   ========================================================= */
+
+function clearGameObjects() {
+
+    lasers = [];
+
+    enemyBullets = [];
+
+    asteroids = [];
+
+    enemies = [];
+
+    particles = [];
+
+    powerUps = [];
+
+    drones = [];
+
+    empFreezeTimer = 0;
+
+    boss = null;
+
+    bossActive = false;
+}
+
+
+function startGame() {
+
+    initAudio();
+
+    gameState = "playing";
+
+    score = 0;
+
+    kills = 0;
+
+    level = 1;
+
+    maxCombo = 1;
+
+    comboMultiplier = 1;
+
+    comboTimer = 0;
+
+    bossNumber = 1;
+
+    nextBossScore =
+        bossScoreThreshold(bossNumber);
+
+    slowMotion = 1;
+
+    screenShake = 0;
+
+    flashTimer = 0;
+
+    asteroidSpawnTimer = 0;
+
+    enemySpawnTimer = 2;
+
+    kamikazeSpawnTimer =
+        SETTINGS.kamikaze.firstSpawnMin +
+        Math.random() *
+        (
+            SETTINGS.kamikaze.firstSpawnMax -
+            SETTINGS.kamikaze.firstSpawnMin
+        );
+
+    powerUpTimer = 2.0;
+
+    clearGameObjects();
+
+    resetPlayer();
+
+    document.getElementById(
+        "menu"
+    ).classList.add("hidden");
+
+    document.getElementById(
+        "gameOverMenu"
+    ).classList.add("hidden");
+
+    document.getElementById(
+        "pauseMenu"
+    ).classList.add("hidden");
+
+    document.getElementById(
+        "controlsMenu"
+    ).classList.add("hidden");
+
+    startMusic();
+}
+
+
+/* =========================================================
+   22. PAUSE
+   ========================================================= */
+
+function pauseGame() {
+
+    if (
+        gameState !== "playing"
+    ) {
+        return;
+    }
+
+    gameState = "paused";
+
+    document.getElementById(
+        "pauseMenu"
+    ).classList.remove(
+        "hidden"
+    );
+}
+
+
+function resumeGame() {
+
+    if (
+        gameState !== "paused"
+    ) {
+        return;
+    }
+
+    gameState = "playing";
+
+    document.getElementById(
+        "pauseMenu"
+    ).classList.add(
+        "hidden"
+    );
+
+    startMusic();
+}
+
+
+/* =========================================================
+   23. GAME OVER
+   ========================================================= */
+
+function endGame() {
+
+    gameState = "gameover";
+
+    stopMusic();
+
+    gameOverSound();
+
+    if (
+        score > highScore
+    ) {
+
+        highScore = score;
+
+        localStorage.setItem(
+            "asteroidHighScore",
+            highScore
+        );
+
+        unlockAchievement(
+            "HIGH SCORE"
+        );
+    }
+
+    document.getElementById(
+        "finalScore"
+    ).textContent =
+        score;
+
+    document.getElementById(
+        "finalHighScore"
+    ).textContent =
+        highScore;
+
+    document.getElementById(
+        "finalKills"
+    ).textContent =
+        kills;
+
+    document.getElementById(
+        "finalCombo"
+    ).textContent =
+        Math.ceil(
+            maxCombo
+        );
+
+    document.getElementById(
+        "gameOverMenu"
+    ).classList.remove(
+        "hidden"
+    );
+}
+
+
+/* =========================================================
+   24. RETURN TO MAIN MENU
+   ========================================================= */
+
+function returnToMenu() {
+
+    gameState = "menu";
+
+    stopMusic();
+
+    clearGameObjects();
+
+    document.getElementById(
+        "pauseMenu"
+    ).classList.add(
+        "hidden"
+    );
+
+    document.getElementById(
+        "gameOverMenu"
+    ).classList.add(
+        "hidden"
+    );
+
+    document.getElementById(
+        "controlsMenu"
+    ).classList.add(
+        "hidden"
+    );
+
+    document.getElementById(
+        "menu"
+    ).classList.remove(
+        "hidden"
+    );
+
+    document.getElementById(
+        "menuHighScore"
+    ).textContent =
+        highScore;
+}
+
+
+/* =========================================================
+   25. BUTTONS
+   ========================================================= */
+
+document.getElementById(
+    "startButton"
+).addEventListener(
+    "click",
+    startGame
+);
+
+
+document.getElementById(
+    "restartButton"
+).addEventListener(
+    "click",
+    startGame
+);
+
+
+document.getElementById(
+    "resumeButton"
+).addEventListener(
+    "click",
+    resumeGame
+);
+
+
+document.getElementById(
+    "pauseMenuButton"
+).addEventListener(
+    "click",
+    returnToMenu
+);
+
+
+document.getElementById(
+    "gameOverMenuButton"
+).addEventListener(
+    "click",
+    returnToMenu
+);
+
+
+/* =========================================================
+   DIFFICULTY BUTTON
+   ========================================================= */
+
+document.getElementById(
+    "difficultyButton"
+).addEventListener(
+    "click",
+    () => {
+
+        if (
+            difficulty === "normal"
+        ) {
+
+            difficulty = "hard";
+        }
+
+        else if (
+            difficulty === "hard"
+        ) {
+
+            difficulty = "easy";
+        }
+
+        else {
+
+            difficulty = "normal";
+        }
+
+        difficultyMultiplier =
+            SETTINGS.difficulty[
+                difficulty
+            ];
+
+        document.getElementById(
+            "difficultyButton"
+        ).textContent =
+            "DIFFICULTY: " +
+            difficulty.toUpperCase();
+    }
+);
+
+
+/* =========================================================
+   SOUND BUTTON
+   ========================================================= */
+
+document.getElementById(
+    "soundButton"
+).addEventListener(
+    "click",
+    () => {
+
+        soundEnabled =
+            !soundEnabled;
+
+        document.getElementById(
+            "soundButton"
+        ).textContent =
+            "SOUND: " +
+            (
+                soundEnabled
+                    ? "ON"
+                    : "OFF"
+            );
+    }
+);
+
+
+/* =========================================================
+   MUSIC BUTTON
+   ========================================================= */
+
+document.getElementById(
+    "musicButton"
+).addEventListener(
+    "click",
+    () => {
+
+        musicEnabled =
+            !musicEnabled;
+
+        document.getElementById(
+            "musicButton"
+        ).textContent =
+            "MUSIC: " +
+            (
+                musicEnabled
+                    ? "ON"
+                    : "OFF"
+            );
+
+        if (
+            musicEnabled &&
+            gameState === "playing"
+        ) {
+
+            startMusic();
+        }
+
+        else {
+
+            stopMusic();
+        }
+    }
+);
+
+
+/* =========================================================
+   CONTROLS SCREEN
+   ========================================================= */
+
+document.getElementById(
+    "howButton"
+).addEventListener(
+    "click",
+    () => {
+
+        document.getElementById(
+            "menu"
+        ).classList.add(
+            "hidden"
+        );
+
+        document.getElementById(
+            "controlsMenu"
+        ).classList.remove(
+            "hidden"
+        );
+    }
+);
+
+
+document.getElementById(
+    "controlsBack"
+).addEventListener(
+    "click",
+    () => {
+
+        document.getElementById(
+            "controlsMenu"
+        ).classList.add(
+            "hidden"
+        );
+
+        document.getElementById(
+            "menu"
+        ).classList.remove(
+            "hidden"
+        );
+    }
+);
+
+
+/* =========================================================
+   26. MOBILE CONTROLS
+   ========================================================= */
+
+function holdButton(
+    element,
+    key
+) {
+
+    element.addEventListener(
+        "pointerdown",
+        e => {
+
+            e.preventDefault();
+
+            keys[key] = true;
+        }
+    );
+
+    element.addEventListener(
+        "pointerup",
+        e => {
+
+            e.preventDefault();
+
+            keys[key] = false;
+        }
+    );
+
+    element.addEventListener(
+        "pointercancel",
+        () => {
+
+            keys[key] = false;
+        }
+    );
+
+    element.addEventListener(
+        "pointerleave",
+        () => {
+
+            keys[key] = false;
+        }
+    );
+}
+
+
+holdButton(
+    document.getElementById(
+        "leftButton"
+    ),
+    "ArrowLeft"
+);
+
+
+holdButton(
+    document.getElementById(
+        "rightButton"
+    ),
+    "ArrowRight"
+);
+
+
+holdButton(
+    document.getElementById(
+        "upButton"
+    ),
+    "ArrowUp"
+);
+
+
+holdButton(
+    document.getElementById(
+        "downButton"
+    ),
+    "ArrowDown"
+);
+
+
+document.getElementById(
+    "bombButton"
+).addEventListener(
+    "pointerdown",
+    e => {
+
+        e.preventDefault();
+
+        if (
+            gameState === "playing"
+        ) {
+
+            useBomb();
+        }
+    }
+);
+
+
+/* =========================================================
+   27. MAIN DRAW
+   ========================================================= */
+
+function drawGame() {
+
+    ctx.save();
+
+    /* Screen shake */
+
+    if (
+        screenShake > 0
+    ) {
+
+        ctx.translate(
+            (
+                Math.random() -
+                0.5
+            ) *
+            screenShake,
+
+            (
+                Math.random() -
+                0.5
+            ) *
+            screenShake
+        );
+    }
+
+    /* Background */
+
+    ctx.fillStyle = "#02040a";
+
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
+    );
+
+    drawStars();
+
+    drawParticles();
+
+    drawLasers();
+
+    drawAsteroids();
+
+    drawEnemies();
+
+    drawEnemyBullets();
+
+    drawPowerUps();
+
+    drawDrones();
+
+    drawBoss();
+
+    drawPlayer();
+
+    ctx.restore();
+
+    drawScreenEffects();
+}
+
+
+/* =========================================================
+   28. UPDATE
+   ========================================================= */
+
+function update(dt) {
+
+    if (
+        gameState !== "playing"
+    ) {
+        return;
+    }
+
+    dt =
+        Math.min(
+            dt,
+            0.033
+        );
+
+    updateStars(dt);
+
+    updatePlayer(dt);
+
+    updateLasers(dt);
+
+    updateDrones(dt);
+
+    updateAsteroids(dt);
+
+    updateEnemies(dt);
+
+    updateEnemyBullets(dt);
+
+    updatePowerUps(dt);
+
+    updateBoss(dt);
+
+    updateParticles(dt);
+
+    updateCombo(dt);
+
+    updateDifficulty();
+
+    checkCollisions();
+
+    if (
+        screenShake > 0
+    ) {
+
+        screenShake *=
+            0.88;
+
+        if (
+            screenShake < 0.1
+        ) {
+            screenShake = 0;
+        }
+    }
+
+    if (
+        flashTimer > 0
+    ) {
+
+        flashTimer -= dt;
+    }
+
+    if (
+        empFreezeTimer > 0
+    ) {
+
+        empFreezeTimer -= dt;
+
+        if (empFreezeTimer < 0) {
+            empFreezeTimer = 0;
+        }
+    }
+
+    updateHUD();
+}
+
+
+/* =========================================================
+   29. GAME LOOP
+   ========================================================= */
+
+let lastTime =
+    performance.now();
+
+
+function gameLoop(now) {
+
+    const dt =
+        (now - lastTime) /
+        1000;
+
+    lastTime = now;
+
+    update(dt);
+
+    drawGame();
+
+    requestAnimationFrame(
+        gameLoop
+    );
+}
+
+
+/* =========================================================
+   30. INITIALIZATION
+   ========================================================= */
+
+createStars();
+
+updateHUD();
+
+document.getElementById(
+    "menuHighScore"
+).textContent =
+    highScore;
+
+requestAnimationFrame(
+    gameLoop
+);
+
+</script>
+
+</body>
+</html>
